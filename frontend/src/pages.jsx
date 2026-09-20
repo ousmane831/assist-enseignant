@@ -27,16 +27,66 @@ export function Dashboard() {
   const act = [...(fi || []).map((f) => ({ t: f.updated_at, l: `Fiche ${f.niveau} – ${f.matiere} – ${f.lecon}` })),
     ...(ev || []).map((e) => ({ t: e.created_at, l: `Évaluation ${niv[e.classe] || ""} – ${e.matiere}` }))].sort((a, b) => b.t.localeCompare(a.t)).slice(0, 5);
   return (<>
-    <h1>Bonjour, M. / Mme {me?.nom} 👋🏾</h1><p>Que souhaitez-vous faire aujourd'hui ?</p>
-    <div className="big">
-      <div className="card"><h2>📝 Préparer une leçon</h2><p>Créez ou retrouvez rapidement une fiche pédagogique et les exercices associés.</p><Link className="btn" to="/preparation">Préparer une leçon</Link></div>
-      <div className="card"><h2>📊 Gérer une évaluation</h2><p>Saisissez les notes, calculez les résultats et préparez vos bulletins.</p><Link className="btn" to="/evaluations">Nouvelle évaluation</Link></div>
+    <div className="welcome-section">
+      <h1>Bienvenue, {me?.nom}</h1>
+      <p className="subtitle">Tableau de bord</p>
     </div>
-    <div className="grid" style={{ marginTop: 24 }}>
-      {[["Classes", cl?.length], ["Élèves", el?.length], ["Fiches récentes", Math.min(fi?.length || 0, 5)], ["Évaluations récentes", Math.min(ev?.length || 0, 5)]].map(([l, n]) =>
-        <div className="card" key={l}><strong style={{ fontSize: "1.8rem" }}>{n ?? "–"}</strong><div className="muted">{l}</div></div>)}
+    
+    <div className="dashboard-grid">
+      <div className="action-card primary">
+        <div className="card-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </div>
+        <h2>Préparer une leçon</h2>
+        <p>Créez ou retrouvez rapidement une fiche pédagogique et les exercices associés.</p>
+        <Link className="btn" to="/preparation">Commencer</Link>
+      </div>
+      
+      <div className="action-card secondary">
+        <div className="card-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+          </svg>
+        </div>
+        <h2>Gérer une évaluation</h2>
+        <p>Saisissez les notes, calculez les résultats et préparez vos bulletins.</p>
+        <Link className="btn sec" to="/evaluations">Nouvelle évaluation</Link>
+      </div>
     </div>
-    <h2>Activité récente</h2>{act.length ? <ul>{act.map((a, i) => <li key={i}>{a.l}</li>)}</ul> : <Empty>Rien pour le moment. Commencez par préparer une leçon.</Empty>}
+    
+    <div className="stats-grid">
+      {[
+        { label: "Classes", value: cl?.length ?? 0 },
+        { label: "Élèves", value: el?.length ?? 0 },
+        { label: "Fiches", value: Math.min(fi?.length || 0, 5) },
+        { label: "Évaluations", value: Math.min(ev?.length || 0, 5) }
+      ].map((stat) => (
+        <div className="stat-card" key={stat.label}>
+          <div className="stat-value">{stat.value}</div>
+          <div className="stat-label">{stat.label}</div>
+        </div>
+      ))}
+    </div>
+    
+    <div className="recent-section">
+      <h2>Activité récente</h2>
+      {act.length ? (
+        <div className="activity-list">
+          {act.map((a, i) => (
+            <div className="activity-item" key={i}>{a.l}</div>
+          ))}
+        </div>
+      ) : (
+        <Empty>Aucune activité récente. Commencez par préparer une leçon.</Empty>
+      )}
+    </div>
   </>);
 }
 
@@ -48,20 +98,59 @@ export function Preparation() {
     const f = await safe(say, () => send("POST", "/fiches/", { niveau: niv, matiere: mat, lecon: titre, annee_scolaire: cfg.annee_scolaire || "", sections: cfg.canevas.map((t) => ({ titre: t, contenu: "" })) }));
     if (f?.id) nav("/fiches/" + f.id);
   };
-  const ajouter = async () => { if (!nv.trim()) return; await safe(say, () => send("POST", "/lecons/", { niveau: niv, matiere: mat, titre: nv }), "✅ Enregistrement réussi"); setNv(""); reload(); };
+  const ajouter = async () => { if (!nv.trim()) return; await safe(say, () => send("POST", "/lecons/", { niveau: niv, matiere: mat, titre: nv }), "Enregistrement réussi"); setNv(""); reload(); };
   return (<>
-    <h1>Préparer une leçon</h1><Steps items={["Niveau", "Matière", "Leçon", "Fiche", "Exercices", "Aperçu"]} current={!niv ? 0 : !mat ? 1 : 2} />
-    <h2>Étape 1 : Choisissez le niveau</h2><div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(110px,1fr))" }}>
-      {NIVEAUX.map((n) => <button key={n} className={"choice" + (n === niv ? " on" : "")} onClick={() => { setNiv(n); setMat(); }}>{n}</button>)}</div>
-    {niv && <><h2>Étape 2 : Choisissez la matière</h2><div className="grid">{cfg?.matieres.map((m) => <button key={m} className={"choice" + (m === mat ? " on" : "")} onClick={() => setMat(m)}>{m}</button>)}</div></>}
-    {mat && <><h2>Étape 3 : Choisissez la leçon</h2>
-      <input placeholder="Rechercher une leçon" aria-label="Rechercher une leçon" value={q} onChange={(e) => setQ(e.target.value)} />
-      <p className="muted">{niv} → {mat}</p>
+    <div className="page-header">
+      <h1>Préparer une leçon</h1>
+      <p className="subtitle">Créez une fiche pédagogique en quelques étapes</p>
+    </div>
+    
+    <div className="progress-bar">
+      <div className="progress-step completed">Niveau</div>
+      <div className="progress-step completed">Matière</div>
+      <div className="progress-step completed">Leçon</div>
+      <div className="progress-step">Fiche</div>
+      <div className="progress-step">Exercices</div>
+      <div className="progress-step">Aperçu</div>
+    </div>
+    
+    <div className="step-section">
+      <h2 className="step-title">Étape 1 : Choisissez le niveau</h2>
+      <div className="level-grid">
+        {NIVEAUX.map((n) => <button key={n} className={"level-card" + (n === niv ? " active" : "")} onClick={() => { setNiv(n); setMat(); }}>{n}</button>)}
+      </div>
+    </div>
+    
+    {niv && <div className="step-section">
+      <h2 className="step-title">Étape 2 : Choisissez la matière</h2>
+      <div className="subject-grid">
+        {cfg?.matieres.map((m) => <button key={m} className={"subject-card" + (m === mat ? " active" : "")} onClick={() => setMat(m)}>{m}</button>)}
+      </div>
+    </div>}
+    
+    {mat && <div className="step-section">
+      <h2 className="step-title">Étape 3 : Choisissez la leçon</h2>
+      <input className="search-input" placeholder="Rechercher une leçon" aria-label="Rechercher une leçon" value={q} onChange={(e) => setQ(e.target.value)} />
+      <p className="context-text">{niv} → {mat}</p>
+      
       {(lecons || []).filter((l) => l.titre.toLowerCase().includes(q.toLowerCase())).map((l) => (
-        <div className="card row" key={l.id} style={{ marginBottom: 8 }}><span>{l.domaine && l.domaine + " → "}{l.titre}</span><button className="btn" onClick={() => ouvrir(l.titre)}>Générer / Ouvrir la fiche</button></div>))}
-      {!lecons?.length && <Empty>Le programme officiel n'est pas préchargé : il sera ajouté après validation. En attendant, saisissez votre leçon ci-dessous.</Empty>}
-      <div className="row" style={{ marginTop: 12 }}><input placeholder="Titre de la leçon" aria-label="Titre de la leçon" value={nv} onChange={(e) => setNv(e.target.value)} /><button className="btn sec" onClick={ajouter}>Ajouter cette leçon</button>
-        <button className="btn" disabled={!nv.trim()} onClick={() => ouvrir(nv)}>Générer / Ouvrir la fiche</button></div></>}
+        <div className="lesson-card" key={l.id}>
+          <div className="lesson-info">
+            {l.domaine && <span className="lesson-domain">{l.domaine} → </span>}
+            <span className="lesson-title">{l.titre}</span>
+          </div>
+          <button className="btn" onClick={() => ouvrir(l.titre)}>Ouvrir</button>
+        </div>
+      ))}
+      
+      {!lecons?.length && <Empty>Le programme officiel n'est pas préchargé. En attendant, saisissez votre leçon ci-dessous.</Empty>}
+      
+      <div className="new-lesson">
+        <input className="lesson-input" placeholder="Titre de la leçon" aria-label="Titre de la leçon" value={nv} onChange={(e) => setNv(e.target.value)} />
+        <button className="btn sec" onClick={ajouter}>Ajouter</button>
+        <button className="btn" disabled={!nv.trim()} onClick={() => ouvrir(nv)}>Créer la fiche</button>
+      </div>
+    </div>}
   </>);
 }
 
@@ -113,29 +202,98 @@ export function Fiches() {
   const say = useContext(Say), nav = useNavigate(), [niv, setNiv] = useState(""), [mat, setMat] = useState(""), [an, setAn] = useState(""), [q, setQ] = useState("");
   const qs = new URLSearchParams(Object.entries({ niveau: niv, matiere: mat, annee_scolaire: an, lecon__icontains: q }).filter(([, v]) => v)).toString();
   const [cfg] = useGet("/parametres/"), [fs, reload] = useGet("/fiches/" + (qs ? "?" + qs : ""));
-  const dup = async (f) => { const a = prompt("Année scolaire de la copie (ex. 2026/2027) :", ""); if (a === null) return; const n = await safe(say, () => call("POST", `/fiches/${f.id}/dupliquer/`, { annee_scolaire: a }), "✅ Fiche dupliquée"); if (n) reload(); };
-  return (<><h1>Mes fiches</h1>
-    <div className="row"><input placeholder="Rechercher une fiche" aria-label="Rechercher" value={q} onChange={(e) => setQ(e.target.value)} />
-      <select aria-label="Niveau" value={niv} onChange={(e) => setNiv(e.target.value)}><option value="">Tous les niveaux</option>{NIVEAUX.map((n) => <option key={n}>{n}</option>)}</select>
-      <select aria-label="Matière" value={mat} onChange={(e) => setMat(e.target.value)}><option value="">Toutes les matières</option>{cfg?.matieres.map((m) => <option key={m}>{m}</option>)}</select>
-      <input placeholder="Année scolaire" aria-label="Année scolaire" value={an} onChange={(e) => setAn(e.target.value)} /></div>
-    {!fs?.length ? <Empty>Aucune fiche. <Link to="/preparation">Préparer une leçon</Link></Empty> :
-      <table><thead><tr><th>Niveau</th><th>Matière</th><th>Leçon</th><th>Date</th><th>Dernière modification</th><th>Actions</th></tr></thead><tbody>
-        {fs.map((f) => <tr key={f.id}><td>{f.niveau}</td><td>{f.matiere}</td><td>{f.lecon} <span className="badge">{f.annee_scolaire}</span></td><td>{dt(f.created_at)}</td><td>{dt(f.updated_at)}</td>
-          <td><Link className="btn sm" to={"/fiches/" + f.id}>Ouvrir</Link><Link className="btn sec sm" to={"/fiches/" + f.id}>Modifier</Link>
-            <button className="btn sec sm" onClick={() => dup(f)}>Dupliquer</button><button className="btn sec sm" onClick={() => nav(`/fiches/${f.id}?apercu=1`)}>Imprimer</button>
-            <button className="btn danger sm" onClick={() => confirmer() && supprimer(say, `/fiches/${f.id}/`, reload)}>Supprimer</button></td></tr>)}</tbody></table>}</>);
+  const dup = async (f) => { const a = prompt("Année scolaire de la copie (ex. 2026/2027) :", ""); if (a === null) return; const n = await safe(say, () => call("POST", `/fiches/${f.id}/dupliquer/`, { annee_scolaire: a }), "Fiche dupliquée"); if (n) reload(); };
+  return (<>
+    <div className="page-header">
+      <h1>Mes fiches</h1>
+      <p className="subtitle">Gérez vos fiches pédagogiques</p>
+    </div>
+    
+    <div className="filters-section">
+      <input className="search-input" placeholder="Rechercher une fiche" aria-label="Rechercher" value={q} onChange={(e) => setQ(e.target.value)} />
+      <select aria-label="Niveau" value={niv} onChange={(e) => setNiv(e.target.value)}>
+        <option value="">Tous les niveaux</option>
+        {NIVEAUX.map((n) => <option key={n}>{n}</option>)}
+      </select>
+      <select aria-label="Matière" value={mat} onChange={(e) => setMat(e.target.value)}>
+        <option value="">Toutes les matières</option>
+        {cfg?.matieres.map((m) => <option key={m}>{m}</option>)}
+      </select>
+      <input placeholder="Année scolaire" aria-label="Année scolaire" value={an} onChange={(e) => setAn(e.target.value)} />
+    </div>
+    
+    {!fs?.length ? <Empty>Aucune fiche. <Link to="/preparation">Préparer une leçon</Link></Empty> : (
+      <div className="fiches-list">
+        {fs.map((f) => (
+          <div className="fiche-card" key={f.id}>
+            <div className="fiche-header">
+              <span className="fiche-level">{f.niveau}</span>
+              <span className="fiche-subject">{f.matiere}</span>
+              <span className="fiche-year badge">{f.annee_scolaire}</span>
+            </div>
+            <h3 className="fiche-title">{f.lecon}</h3>
+            <div className="fiche-meta">
+              <span>Créée le {dt(f.created_at)}</span>
+              <span>Modifiée le {dt(f.updated_at)}</span>
+            </div>
+            <div className="fiche-actions">
+              <Link className="btn sm" to={"/fiches/" + f.id}>Ouvrir</Link>
+              <Link className="btn sec sm" to={"/fiches/" + f.id}>Modifier</Link>
+              <button className="btn sec sm" onClick={() => dup(f)}>Dupliquer</button>
+              <button className="btn sec sm" onClick={() => nav(`/fiches/${f.id}?apercu=1`)}>Imprimer</button>
+              <button className="btn danger sm" onClick={() => confirmer() && supprimer(say, `/fiches/${f.id}/`, reload)}>Supprimer</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </>);
 }
 
 export function Classes() {
   const say = useContext(Say), [cl, reload] = useGet("/classes/"), [el] = useGet("/eleves/"), [cfg] = useGet("/parametres/"), [n, setN] = useState({ niveau: "CE2", nom: "" });
-  const add = async () => { if (!n.nom.trim()) return; await safe(say, () => send("POST", "/classes/", { ...n, annee_scolaire: cfg?.annee_scolaire || "" }), "✅ Enregistrement réussi"); setN({ ...n, nom: "" }); reload(); };
-  return (<><h1>Mes classes</h1>
-    {!cl?.length ? <Empty>Aucune classe. Ajoutez votre première classe ci-dessous.</Empty> : <div className="grid">{cl.map((c) => (
-      <div className="card" key={c.id}><h2 style={{ margin: 0 }}>{c.niveau} {c.nom}</h2><p>{(el || []).filter((e) => e.classe === c.id).length} élèves</p><p className="muted">Dernière activité : {dt(c.updated_at)}</p>
-        <Link className="btn" to={"/classes/" + c.id}>Ouvrir la classe</Link></div>))}</div>}
-    <h2>Ajouter une classe</h2><div className="row"><select aria-label="Niveau" value={n.niveau} onChange={(e) => setN({ ...n, niveau: e.target.value })}>{NIVEAUX.map((x) => <option key={x}>{x}</option>)}</select>
-      <input placeholder="Nom (ex. A)" aria-label="Nom de la classe" value={n.nom} onChange={(e) => setN({ ...n, nom: e.target.value })} /><button className="btn" onClick={add}>Ajouter la classe</button></div></>);
+  const add = async () => { if (!n.nom.trim()) return; await safe(say, () => send("POST", "/classes/", { ...n, annee_scolaire: cfg?.annee_scolaire || "" }), "Enregistrement réussi"); setN({ ...n, nom: "" }); reload(); };
+  return (<>
+    <div className="page-header">
+      <h1>Mes classes</h1>
+      <p className="subtitle">Gérez vos classes et vos élèves</p>
+    </div>
+    
+    {!cl?.length ? <Empty>Aucune classe. Ajoutez votre première classe ci-dessous.</Empty> : (
+      <div className="classes-grid">
+        {cl.map((c) => {
+          const elevesCount = (el || []).filter((e) => e.classe === c.id).length;
+          return (
+            <div className="class-card" key={c.id}>
+              <div className="class-header">
+                <span className="class-level">{c.niveau}</span>
+                <span className="class-name">{c.nom}</span>
+              </div>
+              <div className="class-stats">
+                <div className="class-stat">
+                  <span className="stat-number">{elevesCount}</span>
+                  <span className="stat-label">élèves</span>
+                </div>
+              </div>
+              <p className="class-activity">Dernière activité : {dt(c.updated_at)}</p>
+              <Link className="btn" to={"/classes/" + c.id}>Ouvrir</Link>
+            </div>
+          );
+        })}
+      </div>
+    )}
+    
+    <div className="add-class-section">
+      <h2 className="section-title">Ajouter une classe</h2>
+      <div className="add-class-form">
+        <select aria-label="Niveau" value={n.niveau} onChange={(e) => setN({ ...n, niveau: e.target.value })}>
+          {NIVEAUX.map((x) => <option key={x}>{x}</option>)}
+        </select>
+        <input placeholder="Nom (ex. A)" aria-label="Nom de la classe" value={n.nom} onChange={(e) => setN({ ...n, nom: e.target.value })} />
+        <button className="btn" onClick={add}>Ajouter</button>
+      </div>
+    </div>
+  </>);
 }
 
 export function Classe() {
@@ -174,9 +332,41 @@ export function NouvelleEval() {
 
 export function Evaluations() {
   const [cl] = useGet("/classes/");
-  return (<><h1>Évaluations</h1><Steps items={["Évaluation", "Classe", "Notes", "Résultats", "Appréciations", "Vérification", "Bulletin"]} current={1} /><h2>Choisissez une classe</h2>
-    {!cl?.length ? <Empty>Créez d'abord une classe dans <Link to="/classes">Mes classes</Link>.</Empty> : <div className="grid">{cl.map((c) => (
-      <div className="card" key={c.id}><h2 style={{ margin: 0 }}>{c.niveau} {c.nom}</h2><Link className="btn" to={`/classes/${c.id}/evaluations/nouvelle`}>Nouvelle évaluation</Link><Link className="btn sec" to={"/classes/" + c.id}>Ouvrir la classe</Link></div>))}</div>}</>);
+  return (<>
+    <div className="page-header">
+      <h1>Évaluations</h1>
+      <p className="subtitle">Gérez les évaluations et les notes de vos élèves</p>
+    </div>
+    
+    <div className="progress-bar">
+      <div className="progress-step">Évaluation</div>
+      <div className="progress-step active">Classe</div>
+      <div className="progress-step">Notes</div>
+      <div className="progress-step">Résultats</div>
+      <div className="progress-step">Appréciations</div>
+      <div className="progress-step">Vérification</div>
+      <div className="progress-step">Bulletin</div>
+    </div>
+    
+    <h2 className="section-title">Choisissez une classe</h2>
+    
+    {!cl?.length ? <Empty>Créez d'abord une classe dans <Link to="/classes">Mes classes</Link>.</Empty> : (
+      <div className="classes-grid">
+        {cl.map((c) => (
+          <div className="class-card" key={c.id}>
+            <div className="class-header">
+              <span className="class-level">{c.niveau}</span>
+              <span className="class-name">{c.nom}</span>
+            </div>
+            <div className="class-actions">
+              <Link className="btn" to={`/classes/${c.id}/evaluations/nouvelle`}>Nouvelle évaluation</Link>
+              <Link className="btn sec" to={"/classes/" + c.id}>Ouvrir</Link>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </>);
 }
 
 export function Notes() {
