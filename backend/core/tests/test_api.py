@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from rest_framework.test import APITestCase
 from core import models as m
 
@@ -280,3 +281,146 @@ class Exercices(Base):
         self.assertEqual((r["titre"], r["imprimer"], r["ordre"]), ("Conjuguer", False, 3))
         self.assertEqual(self.client.delete(f"/api/exercices/{xid}/").status_code, 204)
         self.assertEqual(m.Exercice.objects.count(), 0)
+
+
+class DemandesCompte(APITestCase):
+    """Demande de compte : accessible sans compte, validée strictement, sans créer de compte ni exposer les demandes."""
+    URL = "/api/demandes-compte/"
+    VALIDE = {"nom_complet": "Aïssatou Diop", "telephone": "77 123 45 67", "email": "a.diop@example.sn",
+              "region": "Thiès", "ia": "IA de Thiès", "ief": "IEF de Mbour", "type_piece": "cni", "numero_piece": "1234567890123"}
+
+    def setUp(self):
+        self.client.force_authenticate(None)  # pas encore de compte : écran de connexion
+        cache.clear()  # remet à zéro la limitation anonyme (30/min) pour des tests déterministes
+
+    def test_depot_sans_compte_normalise_le_numero(self):
+        r = self.client.post(self.URL, self.VALIDE, format="json")
+        self.assertEqual(r.status_code, 201)
+        d = m.DemandeCompte.objects.get()
+        self.assertEqual((d.telephone, d.statut, d.region, d.created_at is not None), ("+221771234567", "nouvelle", "Thiès", True))
+        self.assertEqual(U.objects.count(), 0, "aucun compte n'est créé automatiquement")
+
+    def test_variantes_de_numero_acceptees_et_normalisees(self):
+        for tel, attendu in (("771234567", "+221771234567"), ("+221 76 000 00 01", "+221760000001"),
+                             ("00221-75-123-45-67", "+221751234567"), ("(70) 123 45 67", "+221701234567")):
+            r = self.client.post(self.URL, {**self.VALIDE, "telephone": tel, "numero_piece": tel}, format="json")
+            self.assertEqual(r.status_code, 201, tel)
+            self.assertEqual(m.DemandeCompte.objects.get(numero_piece=tel).telephone, attendu, tel)
+
+    def test_demande_en_double_refusee(self):
+        self.client.post(self.URL, self.VALIDE, format="json")
+        r = self.client.post(self.URL, {**self.VALIDE, "nom_complet": "Autre nom"}, format="json")
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(m.DemandeCompte.objects.count(), 1, "une demande en attente par numéro")
+
+    def test_champs_invalides_refuses(self):
+        for champ, val in (("telephone", "12345"), ("region", "Paris"), ("type_piece", "permis"), ("nom_complet", "   "),
+                           ("numero_piece", ""), ("email", "pas-un-email")):
+            self.assertEqual(self.client.post(self.URL, {**self.VALIDE, champ: val}, format="json").status_code, 400, f"{champ}={val}")
+
+    def test_champs_obligatoires(self):
+        for champ in ("nom_complet", "telephone", "region", "ia", "ief", "type_piece", "numero_piece"):
+            sans = {k: v for k, v in self.VALIDE.items() if k != champ}
+            self.assertEqual(self.client.post(self.URL, sans, format="json").status_code, 400, f"sans {champ}")
+
+    def test_lecture_publique_impossible(self):
+        self.client.post(self.URL, self.VALIDE, format="json")
+        self.assertEqual(self.client.get(self.URL).status_code, 405, "aucune demande exposée en lecture")
+        u = U.objects.create_user("a", password="mdp-test-A1")
+        self.client.force_authenticate(u)
+        self.assertEqual(self.client.get(self.URL).status_code, 405, "un enseignant connecté ne lit pas les demandes")
+        self.assertEqual(m.DemandeCompte.objects.count(), 1)
+
+    def test_statut_non_modifiable_par_le_client(self):
+        r = self.client.post(self.URL, {**self.VALIDE, "statut": "traitee", "created_at": "2000-01-01T00:00:00Z"}, format="json")
+        self.assertEqual(r.status_code, 201)
+        d = m.DemandeCompte.objects.get()
+        self.assertEqual(d.statut, "nouvelle")
+        self.assertGreater(d.created_at.year, 2020)
+
+
+class GestionDemandesAdmin(APITestCase):
+    """Gestion des demandes : protégée côté serveur (anonyme 401, enseignant 403, administrateur autorisé)."""
+    URL = "/api/admin/demandes-compte/"
+
+    def setUp(self):
+        cache.clear()
+        self.d = m.DemandeCompte.objects.create(nom_complet="Aïssatou Diop", telephone="+221771234567", email="a@example.sn",
+                                                region="Thiès", ia="IA de Thiès", ief="IEF de Mbour", type_piece="cni", numero_piece="1234")
+        self.ens = U.objects.create_user("ens", password="mdp-test-E1")
+        self.adm = U.objects.create_user("adm", password="mdp-test-A1", is_staff=True)
+
+    def test_acces_refuse_sans_role_administrateur(self):
+        self.client.force_authenticate(None)
+        self.assertEqual(self.client.get(self.URL).status_code, 401, "anonyme")
+        self.client.force_authenticate(self.ens)
+        self.assertEqual(self.client.get(self.URL).status_code, 403, "enseignant : liste")
+        self.assertEqual(self.client.get(f"{self.URL}{self.d.id}/").status_code, 403, "enseignant : détail")
+        self.assertEqual(self.client.patch(f"{self.URL}{self.d.id}/", {"statut": "traitee"}, format="json").status_code, 403, "enseignant : modification")
+        self.assertEqual(self.client.delete(f"{self.URL}{self.d.id}/").status_code, 403, "enseignant : suppression")
+        self.assertEqual(self.client.post(f"{self.URL}{self.d.id}/creer-compte/").status_code, 403, "enseignant : création de compte")
+        self.assertEqual(m.DemandeCompte.objects.get().statut, "nouvelle", "aucune donnée modifiée")
+
+    def test_administrateur_lit_et_filtre(self):
+        self.client.force_authenticate(self.adm)
+        r = self.client.get(self.URL)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(r.json()), 1)
+        self.assertIn("numero_piece", r.json()[0], "les informations déclarées sont visibles par l'administrateur")
+        self.assertEqual(len(self.client.get(f"{self.URL}?statut=nouvelle").json()), 1)
+        self.assertEqual(len(self.client.get(f"{self.URL}?statut=traitee").json()), 0)
+        self.assertEqual(len(self.client.get(f"{self.URL}?region=Dakar").json()), 0)
+        self.assertEqual(len(self.client.get(f"{self.URL}?q=diop").json()), 1)
+        self.assertEqual(len(self.client.get(f"{self.URL}?q=inexistant").json()), 0)
+
+    def test_administrateur_modifie_statut_et_note(self):
+        self.client.force_authenticate(self.adm)
+        r = self.client.patch(f"{self.URL}{self.d.id}/", {"statut": "rejetee", "note": "Pièce illisible."}, format="json")
+        self.assertEqual(r.status_code, 200)
+        d = m.DemandeCompte.objects.get()
+        self.assertEqual((d.statut, d.note, d.traite_par, d.traite_le is not None), ("rejetee", "Pièce illisible.", self.adm, True))
+
+    def test_informations_declarees_non_modifiables(self):
+        self.client.force_authenticate(self.adm)
+        self.client.patch(f"{self.URL}{self.d.id}/", {"nom_complet": "Autre nom", "telephone": "+221700000000", "statut": "traitee"}, format="json")
+        d = m.DemandeCompte.objects.get()
+        self.assertEqual((d.nom_complet, d.telephone), ("Aïssatou Diop", "+221771234567"), "la demande est une preuve : elle ne se réécrit pas")
+
+    def test_creation_de_compte_par_administrateur(self):
+        self.client.force_authenticate(self.adm)
+        r = self.client.post(f"{self.URL}{self.d.id}/creer-compte/", {}, format="json")
+        self.assertEqual(r.status_code, 200)
+        j = r.json()
+        self.assertEqual(j["username"], "aissatou.diop")
+        u = U.objects.get(username="aissatou.diop")
+        self.assertTrue(u.check_password(j["mot_de_passe"]), "le mot de passe renvoyé est utilisable")
+        self.assertFalse(u.is_staff, "un enseignant créé n'est jamais administrateur")
+        d = m.DemandeCompte.objects.get()
+        self.assertEqual((d.statut, d.compte_cree, d.traite_par), ("traitee", "aissatou.diop", self.adm))
+        self.assertIn("Compte aissatou.diop créé", d.note)
+        self.assertEqual(self.client.post(f"{self.URL}{self.d.id}/creer-compte/", {}, format="json").status_code, 400, "pas de seconde création")
+        self.assertEqual(U.objects.filter(username="aissatou.diop").count(), 1)
+
+    def test_identifiant_impose_deja_pris(self):
+        U.objects.create_user("aissatou.diop", password="mdp-test-Z1")
+        self.client.force_authenticate(self.adm)
+        self.assertEqual(self.client.post(f"{self.URL}{self.d.id}/creer-compte/", {"username": "aissatou.diop"}, format="json").status_code, 400)
+        self.assertEqual(m.DemandeCompte.objects.get().compte_cree, "")
+        r = self.client.post(f"{self.URL}{self.d.id}/creer-compte/", {}, format="json")  # identifiant automatique : rendu unique
+        self.assertEqual((r.status_code, r.json()["username"]), (200, "aissatou.diop2"))
+
+    def test_suppression_par_administrateur(self):
+        self.client.force_authenticate(self.adm)
+        self.assertEqual(self.client.delete(f"{self.URL}{self.d.id}/").status_code, 204)
+        self.assertEqual(m.DemandeCompte.objects.count(), 0)
+
+    def test_me_indique_le_role(self):
+        for u, attendu in ((self.ens, False), (self.adm, True)):
+            self.client.force_authenticate(u)
+            self.assertEqual(self.client.get("/api/me/").json()["est_admin"], attendu, u.username)
+
+    def test_creation_de_demande_interdite_sur_la_route_admin(self):
+        self.client.force_authenticate(self.adm)
+        r = self.client.post(self.URL, {"nom_complet": "X"}, format="json")
+        self.assertEqual(r.status_code, 405, "les demandes se déposent via l'écran de connexion public")
+        self.assertEqual(m.DemandeCompte.objects.count(), 1)

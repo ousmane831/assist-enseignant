@@ -1,10 +1,16 @@
+import re
+import unicodedata
 from collections import defaultdict
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
+from django.utils.crypto import get_random_string
 from rest_framework import routers, viewsets
 from rest_framework.decorators import action, api_view
-from rest_framework.exceptions import APIException, ValidationError
+from rest_framework.exceptions import APIException, MethodNotAllowed, ValidationError
+from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
 from . import calculs as C, models as m, serializers as s
 
@@ -332,13 +338,95 @@ class EvaluationV(Owned):
             "distribution": C.repartition(vals, mx), "eleves": liste, "classement": c["classement"]})
 
 
+# ---------- Demande de compte : seul point d'entrée ouvert sans compte ----------
+class DemandeCompteV(viewsets.ModelViewSet):
+    """Dépôt d'une demande d'ouverture de compte depuis l'écran de connexion.
+    Une seule méthode est exposée (POST) : la lecture est fermée pour ne pas exposer les pièces
+    d'identité ; l'administrateur consulte et traite les demandes dans /admin/.
+    Aucun compte n'est créé ici (pas d'inscription automatique)."""
+    queryset = m.DemandeCompte.objects.all()
+    serializer_class = s.DemandeCompteS
+    permission_classes = [AllowAny]
+    authentication_classes = []  # jeton absent ou expiré : la demande doit rester possible
+    http_method_names = ["post"]
+
+
+# ---------- Gestion des demandes de compte : réservée aux administrateurs ----------
+# La sécurité est assurée ICI, côté serveur (IsAdminUser) : masquer la page dans l'interface ne protège rien.
+def identifiant_libre(nom):
+    """Identifiant lisible et unique dérivé du nom complet (ex. « Aïssatou Diop » -> aissatou.diop)."""
+    base = unicodedata.normalize("NFKD", str(nom)).encode("ascii", "ignore").decode().lower()
+    base = re.sub(r"[^a-z0-9]+", ".", base).strip(".")[:24] or "enseignant"
+    u, n = base, 1
+    while get_user_model().objects.filter(username=u).exists():
+        n += 1
+        u = f"{base}{n}"
+    return u
+
+
+class DemandesCompteAdminV(viewsets.ModelViewSet):
+    """Consultation et traitement des demandes d'ouverture de compte : COMPTES ADMINISTRATEURS UNIQUEMENT
+    (is_staff/superutilisateur). Aucun compte n'est créé automatiquement, la lecture est refusée aux enseignants."""
+    queryset = m.DemandeCompte.objects.select_related("traite_par")
+    serializer_class = s.DemandeCompteAdminS
+    permission_classes = [IsAdminUser]
+    # « post » est nécessaire à l'action « creer-compte » ; la création d'une demande reste impossible ici (voir create).
+    http_method_names = ["get", "post", "patch", "delete"]
+
+    def create(self, req, *a, **k):
+        """Aucune demande ne se crée depuis cette route : elles viennent de l'écran de connexion public."""
+        raise MethodNotAllowed("POST", detail="Une demande se dépose depuis l'écran de connexion, pas ici.")
+
+    def get_queryset(self):
+        qs, f = super().get_queryset(), self.request.query_params
+        if f.get("statut") in dict(m.STATUTS_DEMANDE): qs = qs.filter(statut=f["statut"])
+        if f.get("region") in m.REGIONS: qs = qs.filter(region=f["region"])
+        if f.get("q"):  # recherche : nom, téléphone, e-mail, IA, IEF, numéro de pièce
+            q = f["q"].strip()[:60]
+            qs = qs.filter(Q(nom_complet__icontains=q) | Q(telephone__icontains=q) | Q(email__icontains=q) |
+                           Q(ia__icontains=q) | Q(ief__icontains=q) | Q(numero_piece__icontains=q))
+        return qs
+
+    def perform_update(self, ser):  # toute modification est horodatée et attribuée à son auteur
+        ser.save(traite_le=timezone.now(), traite_par=self.request.user)
+
+    @action(detail=True, methods=["post"], url_path="creer-compte")
+    def creer_compte(self, req, pk=None):
+        """Crée le compte de l'enseignant, sur décision explicite d'un administrateur.
+        Le mot de passe temporaire est renvoyé UNE SEULE FOIS : il n'est ni enregistré ni journalisé."""
+        d = self.get_object()
+        if d.compte_cree:
+            raise ValidationError({"detail": f"Un compte a déjà été créé pour cette demande ({d.compte_cree})."})
+        username = str(req.data.get("username") or "").strip() or identifiant_libre(d.nom_complet)
+        if not re.fullmatch(r"[\w.@+-]{3,150}", username):
+            raise ValidationError({"username": "Identifiant invalide : 3 caractères minimum (lettres, chiffres, . @ + - _)."})
+        if get_user_model().objects.filter(username=username).exists():
+            raise ValidationError({"username": "Cet identifiant est déjà utilisé."})
+        mots = d.nom_complet.split()
+        mdp = get_random_string(10, "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ") + get_random_string(4, "23456789")
+        with transaction.atomic():
+            get_user_model().objects.create_user(username=username, password=mdp,
+                                                first_name=" ".join(mots[:-1])[:150], last_name=(mots[-1] if mots else "")[:150])
+            d.statut, d.compte_cree, d.traite_le, d.traite_par = "traitee", username, timezone.now(), req.user
+            d.note = (d.note + "\n" if d.note else "") + f"Compte {username} créé le {timezone.localtime().strftime('%d/%m/%Y à %H:%M')}."
+            d.save()
+        return Response({"id": d.id, "nom_complet": d.nom_complet, "username": username, "mot_de_passe": mdp, "statut": d.statut,
+                         "message": "Notez ce mot de passe : il ne sera plus affiché. L'enseignant pourra le changer dans « Paramètres »."})
+
+
 router = routers.DefaultRouter()
 for p, v in [("classes", ClasseV), ("eleves", EleveV), ("lecons", LeconV), ("fiches", FicheV), ("exercices", ExerciceV), ("evaluations", EvaluationV)]:
     router.register(p, v, basename=p)
+router.register("demandes-compte", DemandeCompteV, basename="demandes-compte")
+router.register("admin/demandes-compte", DemandesCompteAdminV, basename="demandes-compte-admin")
 
 
 @api_view(["GET"])
-def me(req): return Response({"nom": req.user.get_full_name() or req.user.username})
+def me(req):
+    # est_admin : sert à n'afficher le menu d'administration qu'aux personnes concernées.
+    # La vraie protection reste le contrôle d'accès des vues, côté serveur.
+    return Response({"nom": req.user.get_full_name() or req.user.username,
+                     "est_admin": bool(req.user.is_staff or req.user.is_superuser)})
 
 
 @api_view(["GET", "PUT"])

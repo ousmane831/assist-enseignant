@@ -1,4 +1,4 @@
-:root{--p:#1B6B5A;--pd:#14513F;--pl:#E6F1EE;--acc:#C89B3C;--bg:#FAFBFA;--tx:#1E2A28;--mut:#5A6966;--bd:#D5DEDA;--ok:#1E7A46;--warn:#8A5300;--err:#B3261E}
+:root{--p:#1B6B5A;--pd:#14513F;--pl:#E6F1EE;--acc:#C89B3C;--bg:#FAFBFA;--tx:#1E2A28;--mut:#5A6966;--bd:#D5DEDA;--ok:#1E7A46;--warn:#8A5300;--err:#B3261E;--sn-green:#00853F;--sn-yellow:#FDEF42;--sn-red:#E31B23}
 *{box-sizing:border-box}body{margin:0;font:17px/1.55 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif;color:var(--tx);background:var(--bg)}
 h1{font-size:1.9rem;margin:.2em 0 .6em}h2{font-size:1.3rem;margin:1.4em 0 .6em}a{color:var(--p)}
 .shell{display:flex;min-height:100vh}.side{width:260px;background:#fff;border-right:1px solid var(--bd);padding:24px 16px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column}
@@ -99,3 +99,54 @@ td input{padding:8px}td input.bad{border-color:var(--err);background:#FDEDEC}.mu
 .fiche-meta{display:flex;gap:16px;color:var(--mut);font-size:.85rem}
 .fiche-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
 .fiche-actions .btn{margin:0}
+
+/* --- Page de connexion --- */
+.login-page{min-height:100vh;display:grid;grid-template-columns:1.05fr .95fr;background:var(--bg)}
+.login-brand{position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:center;gap:26px;padding:64px 56px;color:#fff;background:linear-gradient(155deg,var(--sn-green) 0%,#14634B 46%,#0C2C24 100%)}
+.login-brand::before{content:"";position:absolute;top:-130px;right:-130px;width:430px;height:430px;border-radius:50%;background:radial-gradient(circle,rgba(253,239,66,.25),transparent 65%);pointer-events:none}
+.login-brand::after{content:"";position:absolute;left:0;right:0;bottom:0;height:8px;background:linear-gradient(90deg,var(--sn-green) 0 33.33%,var(--sn-yellow) 33.33% 66.66%,var(--sn-red) 66.66% 100%)}
+.login-brand>*{position:relative;z-index:1}
+.login-brand h1{font-size:2.35rem;line-height:1.15;margin:8px 0 10px;color:#fff}
+.login-etat{margin:0;text-transform:uppercase;letter-spacing:.14em;font-size:.78rem;font-weight:700;color:var(--sn-yellow)}
+.login-tagline{margin:0;max-width:46ch;font-size:1.06rem;color:rgba(255,255,255,.9)}
+.login-avantages{list-style:none;margin:0;padding:0;display:grid;gap:12px;max-width:48ch}
+.login-avantages li{position:relative;padding-left:34px;font-size:.98rem;color:rgba(255,255,255,.95)}
+.login-avantages li::before{content:"✓";position:absolute;left:0;top:1px;width:22px;height:22px;border-radius:50%;background:rgba(253,239,66,.22);color:var(--sn-yellow);font-size:.8rem;font-weight:700;display:flex;align-items:center;justify-content:center}
+.flag{display:block;width:96px;height:auto;border-radius:6px;border:1px solid rgba(255,255,255,.5);box-shadow:0 10px 26px rgba(0,0,0,.28)}
+.login-form-panel{display:flex;align-items:center;justify-content:center;padding:48px 32px}
+.login-card{position:relative;width:100%;max-width:440px;background:#fff;border:1px solid var(--bd);border-radius:18px;box-shadow:0 18px 44px rgba(20,81,63,.1);padding:32px}
+.login-tricolore{display:flex;height:6px;border-radius:99px;overflow:hidden;margin-bottom:24px}
+.login-tricolore span{flex:1}.login-tricolore span:nth-child(1){background:var(--sn-green)}.login-tricolore span:nth-child(2){background:var(--sn-yellow)}.login-tricolore span:nth-child(3){background:var(--sn-red)}
+.login-card h2{margin:0 0 4px;font-size:1.45rem;color:var(--pd)}
+.login-card .muted{margin:0 0 8px}
+.login-pass{position:relative}.login-pass input{padding-right:106px}
+.login-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);min-height:40px;padding:0 12px;border:0;border-radius:8px;background:var(--pl);color:var(--pd);font:inherit;font-size:.85rem;font-weight:600;cursor:pointer}
+.login-eye:hover{background:#D6E8E3}
+.login-submit{width:100%;margin:24px 0 0}
+.login-note{margin:18px 0 0;font-size:.82rem;color:var(--mut);text-align:center}
+.login-sep{display:flex;align-items:center;gap:12px;margin:20px 0 14px;color:var(--mut);font-size:.85rem}
+.login-sep::before,.login-sep::after{content:"";flex:1;height:1px;background:var(--bd)}
+.login-demande{width:100%;margin:0}
+.login-card.large{max-width:560px}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:0 18px}
+.form-grid>div{min-width:0}
+.btn:disabled{opacity:.65;cursor:progress}
+.lien{background:none;border:0;padding:0;font:inherit;font-weight:600;color:var(--p);text-decoration:underline;cursor:pointer}
+@media(max-width:900px){.login-page{grid-template-columns:1fr}.login-brand{gap:16px;padding:32px 24px}.login-brand h1{font-size:1.85rem}.login-avantages{display:none}.login-form-panel{padding:24px 16px 40px}.login-card{padding:26px 20px 22px;box-shadow:none}}
+
+/* --- Gestion des demandes de compte (page réservée aux administrateurs) --- */
+.admin-filtres{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px}
+.admin-filtres>div{flex:1;min-width:190px}.admin-filtres label{margin:0 0 4px}
+.admin-resume{color:var(--mut);margin:0 0 12px}
+.table-scroll{overflow-x:auto;background:#fff;border:1px solid var(--bd);border-radius:14px}
+.table-scroll table{min-width:780px}
+.badge.st-nouvelle{background:#FFF2DD;color:var(--warn)}.badge.st-traitee{background:var(--pl);color:var(--ok)}.badge.st-rejetee{background:#FDEDEC;color:var(--err)}
+.demande-detail{border-top:5px solid var(--p)}
+.demande-detail h2{margin-top:0}
+.demande-detail dl{display:grid;grid-template-columns:auto 1fr;gap:6px 18px;margin:16px 0}
+.demande-detail dt{font-weight:600;color:var(--mut)}.demande-detail dd{margin:0}
+.actions-ligne{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.actions-ligne .btn{margin:0}
+.compte-cree{background:#FFF8E7;border:2px solid var(--acc);border-radius:12px;padding:16px 18px;margin-top:18px}
+.compte-cree p{margin:6px 0}
+.compte-cree code{display:inline-block;background:#fff;border:1px solid var(--bd);border-radius:8px;padding:6px 12px;font-size:1.2rem;font-weight:700;letter-spacing:.03em}
+

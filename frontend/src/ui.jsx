@@ -26,3 +26,10 @@ export const Steps = ({ items, current }) => (
   <ol className="steps" aria-label="Étapes">{items.map((s, i) => <li key={s} className={i === current ? "on" : i < current ? "done" : ""}>{s}</li>)}</ol>);
 export const Empty = ({ children }) => <div className="empty">{children}</div>;
 export const confirmer = (msg = "Voulez-vous vraiment supprimer cet élément ?") => window.confirm(msg);
+// Drapeau du Sénégal dessiné en SVG (vert – jaune – rouge, étoile verte) : aucune image à télécharger, donc visible même hors connexion.
+// Les couleurs passent par l'attribut style (les attributs de présentation SVG ne savent pas lire var()).
+export const DrapeauSenegal = ({ size = 96, className = "flag" }) => (
+  <svg className={className} width={size} height={Math.round(size * 2 / 3)} viewBox="0 0 90 60" role="img" aria-label="Drapeau du Sénégal" focusable="false">
+    <rect width="30" height="60" style={{ fill: "var(--sn-green)" }} /><rect x="30" width="30" height="60" style={{ fill: "var(--sn-yellow)" }} /><rect x="60" width="30" height="60" style={{ fill: "var(--sn-red)" }} />
+    <path style={{ fill: "var(--sn-green)" }} d="M45 20l2.25 6.91h7.26l-5.88 4.27 2.25 6.91L45 33.82l-5.88 4.27 2.25-6.91-5.88-4.27h7.26z" />
+  </svg>);

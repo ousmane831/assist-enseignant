@@ -78,3 +78,30 @@ class Appreciation(models.Model):
     texte = models.TextField(blank=True)
     validee = models.BooleanField(default=False)  # jamais définitive sans validation
     class Meta: unique_together = ("eleve", "periode")
+
+# ---------- Demandes de compte (déposées depuis l'écran de connexion, avant toute création de compte) ----------
+REGIONS = ["Dakar", "Diourbel", "Fatick", "Kaffrine", "Kaolack", "Kédougou", "Kolda", "Louga", "Matam", "Saint-Louis", "Sédhiou", "Tambacounda", "Thiès", "Ziguinchor"]
+PIECES = [("cni", "Carte nationale d'identité"), ("passeport", "Passeport"), ("carte_electeur", "Carte d'électeur"),
+          ("carte_pro", "Carte professionnelle"), ("autre", "Autre pièce")]
+STATUTS_DEMANDE = [("nouvelle", "Nouvelle"), ("traitee", "Traitée"), ("rejetee", "Rejetée")]
+
+class DemandeCompte(models.Model):
+    """Demande d'ouverture de compte. Aucun compte n'est créé automatiquement : l'administrateur
+    vérifie l'identité déclarée, puis crée le compte (voir /admin/). Aucune donnée d'élève n'y figure."""
+    nom_complet = models.CharField(max_length=120)
+    telephone = models.CharField(max_length=16)  # normalisé par l'API en +221XXXXXXXXX
+    email = models.EmailField(blank=True)        # facultatif : beaucoup d'enseignants n'ont pas d'e-mail
+    region = models.CharField(max_length=40, choices=[(r, r) for r in REGIONS])
+    ia = models.CharField(max_length=120)   # Inspection d'Académie (texte libre : libellé choisi par l'enseignant)
+    ief = models.CharField(max_length=120)  # Inspection de l'Éducation et de la Formation
+    type_piece = models.CharField(max_length=20, choices=PIECES)
+    numero_piece = models.CharField(max_length=60)
+    statut = models.CharField(max_length=10, choices=STATUTS_DEMANDE, default="nouvelle")
+    created_at = models.DateTimeField(auto_now_add=True)
+    # Suivi du traitement (renseigné côté serveur, jamais par le client) : qui, quand, suite donnée, compte créé.
+    note = models.TextField(blank=True)
+    traite_le = models.DateTimeField(null=True, blank=True)
+    traite_par = models.ForeignKey(U, null=True, blank=True, on_delete=models.SET_NULL, related_name="demandes_traitees")
+    compte_cree = models.CharField(max_length=150, blank=True)  # identifiant créé (jamais le mot de passe)
+    class Meta: ordering = ["-created_at"]
+    def __str__(self): return f"{self.nom_complet} ({self.telephone})"

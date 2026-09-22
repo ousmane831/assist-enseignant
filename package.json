@@ -1,0 +1,16 @@
+{
+  "name": "assistant-enseignant",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Racine du projet : scripts qui deleguent au frontend (React/Vite) et au backend (Django). Aucune dependance a installer ici.",
+  "scripts": {
+    "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File demarrer.ps1 -Cible dev",
+    "stop": "powershell -NoProfile -ExecutionPolicy Bypass -File demarrer.ps1 -Cible stop",
+    "build": "npm run build --prefix frontend",
+    "preview": "npm run preview --prefix frontend",
+    "test": "npm test --prefix frontend",
+    "dev:all": "powershell -NoProfile -ExecutionPolicy Bypass -File demarrer.ps1",
+    "backend": "powershell -NoProfile -ExecutionPolicy Bypass -File demarrer.ps1 -Cible backend",
+    "test:backend": "powershell -NoProfile -ExecutionPolicy Bypass -File demarrer.ps1 -Cible tests"
+  }
+}

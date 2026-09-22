@@ -2,23 +2,241 @@ import { useContext, useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { call, draftSet, drafts, get, pending, send } from "./api";
 import BulletinDocument, { exporterPdf } from "./BulletinDocument";
-import { Empty, Say, Steps, Wait, confirmer, useGet } from "./ui";
+import { Empty, Say, Steps, Wait, confirmer, useGet, DrapeauSenegal } from "./ui";
 
 const NIVEAUX = ["CI", "CP", "CE1", "CE2", "CM1", "CM2"];
+// Listes proposées dans le formulaire de demande de compte. Valeurs de référence à ajuster si besoin :
+// les académies (IA) sont régionales ; le libellé de l'IEF reste libre (chaque département a la sienne).
+const REGIONS = ["Dakar", "Diourbel", "Fatick", "Kaffrine", "Kaolack", "Kédougou", "Kolda", "Louga", "Matam", "Saint-Louis", "Sédhiou", "Tambacounda", "Thiès", "Ziguinchor"];
+const PIECES = [["cni", "Carte nationale d'identité"], ["passeport", "Passeport"], ["carte_electeur", "Carte d'électeur"], ["carte_pro", "Carte professionnelle"], ["autre", "Autre pièce d'identité"]];
 const dt = (d) => new Date(d).toLocaleDateString("fr-FR");
-const msg = (e) => e?.status === 0 ? "🟠 Cette action nécessite une connexion Internet." : e?.status === 404 ? "❌ Cette page n'existe plus ou n'est plus accessible." : e?.status === 400 || e?.status === 409 ? "⚠️ " + (e.detail || "Vérifiez les informations saisies.") : e?.status === 401 ? "Votre session a expiré." : "❌ Impossible d'enregistrer. Vos données locales sont conservées.";
-const safe = async (say, fn, ok) => { try { const r = await fn(); if (r?.queued) say("🟠 Enregistré sur cet appareil : sera synchronisé dès que la connexion sera disponible."); else if (ok) say(ok); return r; } catch (e) { say(msg(e)); } };
+const msg = (e) => e?.status === 0 ? "🟠 Cette action nécessite une connexion Internet." : e?.status === 404 ? "❌ Cette page n'existe plus ou n'est plus accessible." : e?.status === 400 || e?.status === 409 ? "⚠️ " + (e.detail || "Vérifiez les informations saisies.") : e?.status === 401 ? "Votre session a expiré." : e?.status === 429 ? "⏳ Trop de tentatives en peu de temps. Patientez une minute, puis réessayez." : "❌ Impossible d'enregistrer. Vos données locales sont conservées.";
+// Écran de connexion : distinguer un vrai refus d'identifiants d'un problème technique.
+// Sans cela, un serveur éteint, une origine bloquée par CORS ou une limitation de débit feraient
+// croire à tort à un mot de passe faux (message trompeur).
+const msgConnexion = (e) => e?.status === 400 || e?.status === 401 ? "❌ Identifiant ou mot de passe incorrect."
+  : e?.status === 429 ? "⏳ Trop de tentatives en peu de temps. Patientez une minute, puis réessayez."
+  : e?.status ? `❌ Connexion impossible (erreur ${e.status} du serveur). Réessayez dans un instant.`
+  : `🟠 Serveur injoignable : vérifiez qu'il est démarré (port 8000) et ouvrez l'application sur http://localhost:5173 (adresse autorisée).`;
 const supprimer = async (say, path, reload) => { const r = await safe(say, () => send("DELETE", path)); if (r !== undefined && !r?.queued) reload(); }; // recharge seulement si le serveur a confirmé
 const Pdf = () => (<span className="noprint"><button className="btn sec" onClick={exporterPdf}>Télécharger PDF</button><button className="btn sec" onClick={exporterPdf}>Imprimer</button></span>);
 
 export function Login({ onDone, message }) {
-  const [u, setU] = useState(""), [p, setP] = useState(""), [e, setE] = useState("");
-  const go = async (ev) => { ev.preventDefault(); try { const r = await call("POST", "/login/", { username: u, password: p }); localStorage.setItem("token", r.token); localStorage.setItem("user", u); onDone(); } catch { setE("❌ Identifiant ou mot de passe incorrect."); } };
-  return (<form onSubmit={go} className="card" style={{ maxWidth: 420, margin: "10vh auto" }}>
-    <h1>Assistant Enseignant</h1>{message && <p className="warn" role="alert">{message}</p>}<p className="muted">Connectez-vous pour retrouver vos classes et vos fiches.</p>
-    <label htmlFor="u">Identifiant</label><input id="u" value={u} onChange={(e) => setU(e.target.value)} autoComplete="username" />
-    <label htmlFor="p">Mot de passe</label><input id="p" type="password" value={p} onChange={(e) => setP(e.target.value)} autoComplete="current-password" />
-    {e && <p className="err">{e}</p>}<button className="btn" style={{ marginTop: 16, width: "100%" }}>Se connecter</button></form>);
+  const [u, setU] = useState(""), [p, setP] = useState(""), [err, setErr] = useState(""), [voir, setVoir] = useState(false), [demande, setDemande] = useState(false), [envoi, setEnvoi] = useState(false);
+  const go = async (ev) => {
+    ev.preventDefault(); setErr(""); setEnvoi(true);
+    try { const r = await call("POST", "/login/", { username: u, password: p }); localStorage.setItem("token", r.token); localStorage.setItem("user", u); onDone(); }
+    catch (e) { setErr(msgConnexion(e)); }
+    finally { setEnvoi(false); }
+  };
+  return (<div className="login-page">
+    <section className="login-brand">
+      <DrapeauSenegal size={96} />
+      <div>
+        <p className="login-etat">École élémentaire · Sénégal</p>
+        <h1>Assistant Enseignant</h1>
+        <p className="login-tagline">Préparez vos leçons, saisissez vos notes et éditez vos bulletins, même sans connexion Internet.</p>
+      </div>
+      <ul className="login-avantages">
+        <li>Fiches pédagogiques et exercices par niveau</li>
+        <li>Évaluations, moyennes et bulletins prêts à imprimer</li>
+        <li>Vos données restent enregistrées sur votre appareil</li>
+      </ul>
+    </section>
+    <section className="login-form-panel">
+      {demande ? <DemandeCompte onRetour={() => setDemande(false)} /> : (<form onSubmit={go} className="login-card" aria-labelledby="login-titre">
+        <div className="login-tricolore" aria-hidden="true"><span /><span /><span /></div>
+        <h2 id="login-titre">Connexion</h2>
+        <p className="muted">Connectez-vous pour retrouver vos classes et vos fiches.</p>
+        {message && <p className="warn" role="alert">{message}</p>}
+        <label htmlFor="u">Identifiant</label>
+        <input id="u" value={u} onChange={(ev) => setU(ev.target.value)} autoComplete="username" required aria-describedby={err ? "login-err" : undefined} />
+        <label htmlFor="p">Mot de passe</label>
+        <div className="login-pass">
+          <input id="p" type={voir ? "text" : "password"} value={p} onChange={(ev) => setP(ev.target.value)} autoComplete="current-password" required aria-describedby={err ? "login-err" : undefined} />
+          <button type="button" className="login-eye" onClick={() => setVoir(!voir)} aria-pressed={voir}>{voir ? "Masquer" : "Afficher"}</button>
+        </div>
+        {err && <p className="err" id="login-err" role="alert">{err}</p>}
+        <button className="btn login-submit" disabled={envoi}>{envoi ? "Connexion en cours…" : "Se connecter"}</button>
+        <p className="login-sep">ou</p>
+        <button type="button" className="btn sec login-demande" onClick={() => setDemande(true)}>Demander un compte</button>
+        <p className="login-note">Accès réservé aux enseignants autorisés : les comptes sont créés par l'administrateur après vérification.</p>
+      </form>)}
+    </section>
+  </div>);
+}
+
+// Demande d'ouverture de compte : écran ouvert sans compte, atteint par le bouton de la page de connexion.
+// La demande part vers le serveur (POST /demandes-compte/) : l'administrateur vérifie l'identité déclarée
+// puis crée le compte. Aucun compte n'est créé automatiquement et aucune donnée d'élève n'est demandée.
+export function DemandeCompte({ onRetour }) {
+  const vide = { nom_complet: "", telephone: "", email: "", region: "", ia: "", ief: "", type_piece: "cni", numero_piece: "" };
+  const [f, setF] = useState(vide), [err, setErr] = useState(""), [ok, setOk] = useState(null), [envoi, setEnvoi] = useState(false);
+  const set = (k) => (ev) => setF((v) => ({ ...v, [k]: ev.target.value }));
+  const envoyer = async (ev) => {
+    ev.preventDefault(); setErr(""); setEnvoi(true);
+    try { setOk(await call("POST", "/demandes-compte/", f)); } catch (e) { setErr(msg(e)); } finally { setEnvoi(false); }
+  };
+  if (ok) return (<div className="login-card large">
+    <div className="login-tricolore" aria-hidden="true"><span /><span /><span /></div>
+    <h2>Demande enregistrée</h2>
+    <p className="okc" role="status">✅ Demande n° {ok.id} transmise pour {ok.nom_complet}.</p>
+    <p className="muted">L'administrateur vérifie vos informations, puis vous contacte au {ok.telephone} pour vous remettre vos identifiants. Elles ne sont pas partagées avec d'autres enseignants.</p>
+    <button className="btn login-submit" onClick={onRetour}>Retour à la connexion</button>
+  </div>);
+  return (<form onSubmit={envoyer} className="login-card large" aria-labelledby="demande-titre">
+    <div className="login-tricolore" aria-hidden="true"><span /><span /><span /></div>
+    <h2 id="demande-titre">Demander un compte</h2>
+    <p className="muted">Ces informations servent à vérifier votre identité d'enseignant. L'envoi nécessite une connexion Internet.</p>
+    <label htmlFor="dc-nom">Nom complet</label>
+    <input id="dc-nom" value={f.nom_complet} onChange={set("nom_complet")} autoComplete="name" required />
+    <div className="form-grid">
+      <div>
+        <label htmlFor="dc-tel">Numéro de téléphone</label>
+        <input id="dc-tel" type="tel" value={f.telephone} onChange={set("telephone")} autoComplete="tel" placeholder="77 123 45 67" required />
+      </div>
+      <div>
+        <label htmlFor="dc-mail">E-mail <span className="muted">(facultatif)</span></label>
+        <input id="dc-mail" type="email" value={f.email} onChange={set("email")} autoComplete="email" />
+      </div>
+      <div>
+        <label htmlFor="dc-region">Région</label>
+        <select id="dc-region" value={f.region} onChange={set("region")} required>
+          <option value="">— Choisir —</option>{REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+        </select>
+      </div>
+      <div>
+        <label htmlFor="dc-ia">IA (Inspection d'Académie)</label>
+        <input id="dc-ia" list="dc-ia-liste" value={f.ia} onChange={set("ia")} placeholder="ex. IA de Thiès" required />
+        <datalist id="dc-ia-liste">{REGIONS.map((r) => <option key={r} value={`IA de ${r}`} />)}</datalist>
+      </div>
+      <div>
+        <label htmlFor="dc-ief">IEF (Inspection de l'Éducation et de la Formation)</label>
+        <input id="dc-ief" value={f.ief} onChange={set("ief")} placeholder="ex. IEF de Mbour" required />
+      </div>
+      <div>
+        <label htmlFor="dc-piece">Pièce d'identité</label>
+        <div className="row">
+          <select id="dc-piece" aria-label="Type de pièce d'identité" value={f.type_piece} onChange={set("type_piece")}>
+            {PIECES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+          <input aria-label="Numéro de la pièce d'identité" value={f.numero_piece} onChange={set("numero_piece")} placeholder="Numéro de la pièce" required />
+        </div>
+      </div>
+    </div>
+    {err && <p className="err" role="alert">{err}</p>}
+    <button className="btn login-submit" disabled={envoi}>{envoi ? "Envoi en cours…" : "Envoyer la demande"}</button>
+    <p className="login-note">Une seule demande en attente par numéro de téléphone. <button type="button" className="lien" onClick={onRetour}>Retour à la connexion</button></p>
+  </form>);
+}
+
+// Écran affiché aux enseignants (non administrateurs) qui ouvrent une page réservée.
+export function AccesReserve() {
+  return <Empty>🔒 Cette page est réservée aux comptes administrateurs.<p><Link className="btn" to="/">Retour au tableau de bord</Link></p></Empty>;
+}
+
+const LIBELLE_STATUT = { nouvelle: "En attente", traitee: "Traitée", rejetee: "Rejetée" };
+const Etiquette = ({ s }) => <span className={"badge st-" + s}>{LIBELLE_STATUT[s] || s}</span>;
+const dh = (d) => (d ? new Date(d).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "—");
+
+// Détail d'une demande : informations déclarées en lecture seule + traitement par l'administrateur.
+// La création du compte n'a lieu qu'après confirmation explicite ; le mot de passe temporaire est affiché une fois.
+function PanneauDemande({ d, say, reload, onFermer }) {
+  const [x, setX] = useState(d), [note, setNote] = useState(d.note || ""), [compte, setCompte] = useState(null), [encours, setEncours] = useState(false);
+  const patcher = async (corps, msgOk) => {
+    setEncours(true);
+    try { const r = await safe(say, () => call("PATCH", `/admin/demandes-compte/${x.id}/`, corps), msgOk); if (r) { setX(r); setNote(r.note || ""); } }
+    finally { setEncours(false); reload(); }
+  };
+  const supprimerDemande = async () => {
+    if (!confirmer(`Supprimer définitivement la demande de ${x.nom_complet} ? La pièce d'identité déclarée sera perdue.`)) return;
+    const r = await safe(say, () => call("DELETE", `/admin/demandes-compte/${x.id}/`), "✅ Demande supprimée.");
+    if (r !== undefined) { onFermer(); reload(); }
+  };
+  const creerCompte = async () => {
+    if (!confirmer(`Créer le compte de ${x.nom_complet} ? Un mot de passe temporaire sera affiché une seule fois.`)) return;
+    setEncours(true);
+    try { const r = await call("POST", `/admin/demandes-compte/${x.id}/creer-compte/`, {}); setCompte(r); setX({ ...x, statut: "traitee", compte_cree: r.username }); }
+    catch (e) { say(msg(e)); }
+    finally { setEncours(false); reload(); }
+  };
+  return (<div className="card demande-detail" style={{ marginTop: 20 }}>
+    <h2>Demande de {x.nom_complet}</h2>
+    <dl>
+      <dt>Téléphone</dt><dd>{x.telephone}</dd>
+      <dt>E-mail</dt><dd>{x.email || "—"}</dd>
+      <dt>Région</dt><dd>{x.region}</dd>
+      <dt>IA (Inspection d'Académie)</dt><dd>{x.ia}</dd>
+      <dt>IEF</dt><dd>{x.ief}</dd>
+      <dt>Pièce d'identité</dt><dd>{x.type_piece} n° {x.numero_piece}</dd>
+      <dt>Reçue le</dt><dd>{dh(x.created_at)}</dd>
+      <dt>Statut</dt><dd><Etiquette s={x.statut} /></dd>
+      <dt>Traitée par</dt><dd>{x.traite_par ? `${x.traite_par} — ${dh(x.traite_le)}` : "—"}</dd>
+      <dt>Compte créé</dt><dd>{x.compte_cree || "—"}</dd>
+    </dl>
+    <label htmlFor="d-note">Suite donnée / observations (visibles des administrateurs seulement)</label>
+    <textarea id="d-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="ex. pièce vérifiée à l'IEF, enseignante appelée le 12/09…" />
+    <div className="actions-ligne">
+      <button className="btn sec sm" disabled={encours} onClick={() => patcher({ note }, "✅ Note enregistrée.")}>Enregistrer la note</button>
+      {x.statut !== "traitee" && <button className="btn sm" disabled={encours} onClick={() => patcher({ statut: "traitee" }, "✅ Demande marquée comme traitée.")}>Marquer comme traitée</button>}
+      {x.statut !== "rejetee" && <button className="btn sec sm" disabled={encours} onClick={() => { if (confirmer("Marquer cette demande comme rejetée ?")) patcher({ statut: "rejetee" }, "✅ Demande rejetée."); }}>Rejeter</button>}
+      {!x.compte_cree && <button className="btn sm" disabled={encours} onClick={creerCompte}>Créer le compte</button>}
+      <button className="btn danger sm" disabled={encours} onClick={supprimerDemande}>Supprimer la demande</button>
+      <button className="btn sec sm" onClick={onFermer}>Fermer</button>
+    </div>
+    {compte && <div className="compte-cree" role="status">
+      <strong>✅ Compte créé : {compte.username}</strong>
+      <p>Mot de passe temporaire, affiché une seule fois et jamais enregistré :</p>
+      <code>{compte.mot_de_passe}</code>
+      <p className="muted">{compte.message}</p>
+      <button className="btn sec sm" onClick={() => { navigator.clipboard?.writeText(compte.mot_de_passe); say("📋 Mot de passe copié."); }}>Copier</button>
+    </div>}
+  </div>);
+}
+
+// ---------- Page d'administration : gestion des demandes de compte ----------
+// Cette page n'est qu'un confort d'utilisation : le serveur refuse déjà tout accès sans rôle
+// administrateur (403) et n'expose jamais les demandes aux enseignants.
+export function GestionDemandes() {
+  const say = useContext(Say);
+  const [statut, setStatut] = useState(""), [region, setRegion] = useState(""), [saisie, setSaisie] = useState(""), [q, setQ] = useState(""), [sel, setSel] = useState(null);
+  useEffect(() => { const t = setTimeout(() => setQ(saisie.trim()), 400); return () => clearTimeout(t); }, [saisie]); // évite une requête à chaque frappe
+  const [liste, reload] = useGet("/admin/demandes-compte/?" + new URLSearchParams({ ...(statut && { statut }), ...(region && { region }), ...(q && { q }) }));
+  const demandes = liste || [];
+  const nb = (s) => demandes.filter((d) => d.statut === s).length;
+  return (<>
+    <div className="page-header">
+      <h1>Demandes de compte</h1>
+      <p className="subtitle">Vérifiez l'identité déclarée, puis créez le compte. Aucun compte n'est créé automatiquement.</p>
+    </div>
+    <div className="card admin-filtres">
+      <div><label htmlFor="f-statut">Statut</label>
+        <select id="f-statut" value={statut} onChange={(e) => setStatut(e.target.value)}>
+          <option value="">Toutes</option>{Object.entries(LIBELLE_STATUT).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select></div>
+      <div><label htmlFor="f-region">Région</label>
+        <select id="f-region" value={region} onChange={(e) => setRegion(e.target.value)}>
+          <option value="">Toutes</option>{REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+        </select></div>
+      <div><label htmlFor="f-q">Recherche</label>
+        <input id="f-q" type="search" value={saisie} onChange={(e) => setSaisie(e.target.value)} placeholder="nom, téléphone, IA, IEF, n° de pièce…" /></div>
+    </div>
+    {liste === null ? <Wait /> : demandes.length === 0 ? <Empty>Aucune demande ne correspond à cette recherche.</Empty> : (<>
+      <p className="admin-resume">{demandes.length} demande(s) affichée(s) — en attente : {nb("nouvelle")}, traitées : {nb("traitee")}, rejetées : {nb("rejetee")}.</p>
+      <div className="table-scroll"><table>
+        <thead><tr><th>Demandeur</th><th>Téléphone</th><th>Région</th><th>IA / IEF</th><th>Reçue le</th><th>Statut</th><th>Action</th></tr></thead>
+        <tbody>{demandes.map((d) => (<tr key={d.id}>
+          <td>{d.nom_complet}{d.email && <><br /><span className="muted">{d.email}</span></>}</td>
+          <td>{d.telephone}</td>
+          <td>{d.region}</td>
+          <td>{d.ia}<br /><span className="muted">{d.ief}</span></td>
+          <td>{dh(d.created_at)}</td>
+          <td><Etiquette s={d.statut} /></td>
+          <td><button className="btn sec sm" onClick={() => setSel(d)}>Ouvrir</button></td>
+        </tr>))}</tbody></table></div>
+      {sel && <PanneauDemande key={sel.id} d={sel} say={say} reload={reload} onFermer={() => setSel(null)} />}
+    </>)}
+  </>);
 }
 
 export function Dashboard() {
