@@ -150,3 +150,23 @@ td input{padding:8px}td input.bad{border-color:var(--err);background:#FDEDEC}.mu
 .compte-cree p{margin:6px 0}
 .compte-cree code{display:inline-block;background:#fff;border:1px solid var(--bd);border-radius:8px;padding:6px 12px;font-size:1.2rem;font-weight:700;letter-spacing:.03em}
 
+/* --- Mes élèves, fiche élève et paramètres --- */
+.personne{display:flex;align-items:center;gap:12px}.personne h1{font-size:1.6rem}
+.avatar{flex:0 0 auto;width:40px;height:40px;border-radius:50%;background:var(--pl);color:var(--pd);font-weight:700;display:inline-flex;align-items:center;justify-content:center;text-transform:uppercase;letter-spacing:.02em}
+.avatar.lg{width:56px;height:56px;font-size:1.25rem}
+.histo-moyenne{font-weight:700;font-size:1.15rem;color:var(--pd)}
+.param-section{margin-bottom:20px}
+.param-section>h2{margin:0 0 4px;font-size:1.25rem;color:var(--pd)}
+.param-aide{margin:2px 0 10px;color:var(--mut);font-size:.9rem;line-height:1.45}
+.param-aide code,.param-section code{background:var(--pl);color:var(--pd);padding:1px 6px;border-radius:6px;font-size:.9em}
+.param-grille{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:4px 22px}
+.param-grille>div{min-width:0}
+label.case{display:flex;align-items:flex-start;gap:10px;font-weight:500;margin:6px 0 0}
+label.case input{width:auto;margin-top:3px}
+.zone-danger{border-color:#F2C6C2}.zone-danger>h2{color:var(--err)}
+.barre-actions{position:sticky;bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#fff;border:1px solid var(--bd);border-radius:14px;padding:14px 18px;margin-top:22px;box-shadow:0 10px 26px rgba(20,81,63,.1)}
+.barre-actions .btn{margin:0}
+.barre-actions .etat-modif,.barre-actions .muted{margin-left:auto;font-size:.92rem}
+.etat-modif{color:var(--warn);font-weight:600}
+@media(max-width:800px){.barre-actions{position:static}.barre-actions .etat-modif,.barre-actions .muted{margin-left:0}}
+

@@ -14,6 +14,7 @@ const msg = (e) => e?.status === 0 ? "🟠 Cette action nécessite une connexion
 // Écran de connexion : distinguer un vrai refus d'identifiants d'un problème technique.
 // Sans cela, un serveur éteint, une origine bloquée par CORS ou une limitation de débit feraient
 // croire à tort à un mot de passe faux (message trompeur).
+const safe = async (say, fn, ok) => { try { const r = await fn(); if (r?.queued) say("🟠 Enregistré sur cet appareil : sera synchronisé dès que la connexion sera disponible."); else if (ok) say(ok); return r; } catch (e) { say(msg(e)); } };
 const msgConnexion = (e) => e?.status === 400 || e?.status === 401 ? "❌ Identifiant ou mot de passe incorrect."
   : e?.status === 429 ? "⏳ Trop de tentatives en peu de temps. Patientez une minute, puis réessayez."
   : e?.status ? `❌ Connexion impossible (erreur ${e.status} du serveur). Réessayez dans un instant.`
@@ -692,34 +693,146 @@ export function Bulletin() {
 }
 
 export function Eleves() {
-  const [q, setQ] = useState(""), [el] = useGet("/eleves/"), [cl] = useGet("/classes/"), nom = Object.fromEntries((cl || []).map((c) => [c.id, `${c.niveau} ${c.nom}`]));
-  const l = (el || []).filter((e) => `${e.prenom} ${e.nom}`.toLowerCase().includes(q.toLowerCase()));
-  return (<><h1>Mes élèves</h1><input placeholder="Rechercher un élève" aria-label="Rechercher un élève" value={q} onChange={(e) => setQ(e.target.value)} />
-    {!l.length ? <Empty>Aucun élève. Ajoutez-les depuis une classe.</Empty> : <table><tbody>{l.map((e) => <tr key={e.id}><td><Link to={"/eleves/" + e.id}>{e.prenom} {e.nom}</Link></td><td>{nom[e.classe]}</td></tr>)}</tbody></table>}</>);
+  const [q, setQ] = useState(""), [classe, setClasse] = useState(""), [el] = useGet("/eleves/"), [cl] = useGet("/classes/");
+  const nom = Object.fromEntries((cl || []).map((c) => [c.id, `${c.niveau} ${c.nom}`]));
+  const tous = el || [], classes = cl || [];
+  const l = tous.filter((e) => (!classe || String(e.classe) === classe) && `${e.prenom} ${e.nom}`.toLowerCase().includes(q.trim().toLowerCase()));
+  return (<>
+    <div className="page-header">
+      <h1>Mes élèves</h1>
+      <p className="subtitle">{tous.length} élève{tous.length > 1 ? "s" : ""} dans {classes.length} classe{classes.length > 1 ? "s" : ""} — les élèves s'ajoutent depuis une classe.</p>
+    </div>
+    <div className="filters-section">
+      <input type="search" placeholder="Rechercher un élève (nom ou prénom)" aria-label="Rechercher un élève" value={q} onChange={(e) => setQ(e.target.value)} />
+      <select aria-label="Filtrer par classe" value={classe} onChange={(e) => setClasse(e.target.value)}>
+        <option value="">Toutes les classes</option>
+        {classes.map((c) => <option key={c.id} value={c.id}>{c.niveau} {c.nom}</option>)}
+      </select>
+    </div>
+    {!l.length ? <Empty>{tous.length ? "Aucun élève ne correspond à cette recherche." : "Aucun élève pour le moment : ouvrez une classe pour ajouter vos élèves."}</Empty> : (<>
+      <p className="admin-resume">{l.length} élève{l.length > 1 ? "s" : ""} affiché{l.length > 1 ? "s" : ""}.</p>
+      <div className="table-scroll"><table>
+        <thead><tr><th>Élève</th><th>Classe</th><th>Action</th></tr></thead>
+        <tbody>{l.map((e) => (<tr key={e.id}>
+          <td><span className="personne"><span className="avatar" aria-hidden="true">{(e.prenom[0] || "") + (e.nom[0] || "")}</span><Link to={"/eleves/" + e.id}>{e.prenom} {e.nom}</Link></span></td>
+          <td>{nom[e.classe] ? <Link className="badge" to={"/classes/" + e.classe}>{nom[e.classe]}</Link> : "—"}</td>
+          <td><Link className="btn sec sm" to={"/eleves/" + e.id}>Ouvrir la fiche</Link></td>
+        </tr>))}</tbody></table></div>
+    </>)}
+  </>);
 }
 
 export function Eleve() {
-  const { id } = useParams(), [e] = useGet(`/eleves/${id}/`), [c] = useGet(e ? `/classes/${e.classe}/` : null), [cfg] = useGet("/parametres/"), [h, setH] = useState([]);
+  const { id } = useParams(), [e] = useGet(`/eleves/${id}/`), [c] = useGet(e ? `/classes/${e.classe}/` : null), [cfg] = useGet("/parametres/"), [h, setH] = useState([]), [charge, setCharge] = useState(false);
   useEffect(() => { if (e && cfg) Promise.all(cfg.periodes.map(async (p) => { const q = `?periode=${encodeURIComponent(p)}`, [r, a] = await Promise.all([get(`/classes/${e.classe}/resultats/${q}`), get(`/classes/${e.classe}/appreciations/${q}`)]);
-    return { p, m: r.find((x) => x.eleve === e.id)?.moyenne, a: a[e.id]?.validee ? a[e.id].texte : "" }; })).then(setH).catch(() => {}); }, [e, cfg]);
+    return { p, m: r.find((x) => x.eleve === e.id)?.moyenne, a: a[e.id]?.validee ? a[e.id].texte : "" }; })).then(setH).catch(() => {}).finally(() => setCharge(true)); }, [e, cfg]);
   if (!e) return <Wait />;
-  return (<><h1>{e.prenom} {e.nom}</h1><p>Classe : {c && `${c.niveau} ${c.nom}`}</p><h2>Historique</h2>
-    <table><thead><tr><th>Période</th><th>Moyenne</th><th>Appréciation validée</th></tr></thead><tbody>{h.map((x) => <tr key={x.p}><td>{x.p}</td><td>{x.m ?? "—"}</td><td>{x.a || "—"}</td></tr>)}</tbody></table></>);
+  const base = cfg?.base_moyenne ?? 20;
+  return (<>
+    <div className="page-header">
+      <div className="personne">
+        <span className="avatar lg" aria-hidden="true">{(e.prenom[0] || "") + (e.nom[0] || "")}</span>
+        <div>
+          <h1 style={{ margin: 0 }}>{e.prenom} {e.nom}</h1>
+          <p className="subtitle">Classe : {c ? <Link className="badge" to={"/classes/" + c.id}>{c.niveau} {c.nom}</Link> : "—"}</p>
+        </div>
+      </div>
+    </div>
+    <h2>Historique des périodes</h2>
+    <p className="param-aide">Moyennes calculées à partir des notes enregistrées ; seules les appréciations validées apparaissent.</p>
+    {!charge ? <p className="muted">Chargement de l'historique…</p> : !h.length ? <Empty>Aucun historique pour l'instant : saisissez les notes d'une évaluation.</Empty> : (
+      <div className="table-scroll"><table>
+        <thead><tr><th>Période</th><th>Moyenne / {base}</th><th>Appréciation validée</th></tr></thead>
+        <tbody>{h.map((x) => <tr key={x.p}>
+          <td>{x.p}</td>
+          <td className="histo-moyenne">{x.m ?? "—"}</td>
+          <td>{x.a || <span className="muted">—</span>}</td>
+        </tr>)}</tbody>
+      </table></div>)}
+    <p><Link className="btn sec" to="/eleves">Tous les élèves</Link>{c && <Link className="btn sec" to={`/classes/${c.id}`}>Voir la classe</Link>}</p>
+  </>);
 }
 
 export function Parametres({ onLogout }) {
-  const say = useContext(Say), [cfg] = useGet("/parametres/"), [c, setC] = useState(null);
+  const say = useContext(Say), [cfg, recharger] = useGet("/parametres/"), [c, setC] = useState(null);
   useEffect(() => { if (cfg) setC(cfg); }, [cfg]);
   if (!c) return <Wait />;
-  const lines = (k, l) => <><label>{l} (une par ligne)</label><textarea value={c[k].join("\n")} onChange={(e) => setC({ ...c, [k]: e.target.value.split("\n") })} /></>;
+  const modifie = JSON.stringify(c) !== JSON.stringify(cfg); // affiche l'état « modifications non enregistrées »
+  // set(clé, valeur) : met à jour la copie locale de la configuration (appelée avec deux arguments).
+  const set = (k, v) => setC({ ...c, [k]: v });
+  const liste = (k, l, aide) => (<div>
+    <label htmlFor={"p-" + k}>{l}</label>
+    <p className="param-aide">{aide}</p>
+    <textarea id={"p-" + k} value={c[k].join("\n")} onChange={(e) => set(k, e.target.value.split("\n"))} />
+  </div>);
   const seuils = c.appreciations.map((a) => `${a.min}|${a.texte}`).join("\n");
-  return (<><h1>Paramètres</h1><p className="pill">Valeurs provisoires : à valider avec les documents pédagogiques et administratifs de référence.</p>
-    {lines("matieres", "Matières")}{lines("types", "Types d'évaluation")}{lines("periodes", "Périodes")}{lines("canevas", "Rubriques de la fiche pédagogique")}
-    <label>Année scolaire</label><input placeholder="2025/2026" value={c.annee_scolaire || ""} onChange={(e) => setC({ ...c, annee_scolaire: e.target.value })} />
-    <label>Base de la moyenne</label><input type="number" value={c.base_moyenne} onChange={(e) => setC({ ...c, base_moyenne: +e.target.value })} />
-    <label><input type="checkbox" style={{ width: "auto" }} checked={c.classement} onChange={(e) => setC({ ...c, classement: e.target.checked })} /> Afficher le classement</label>
-    <label>Modèle de bulletin / livret (mention affichée)</label><input value={c.modele_bulletin} onChange={(e) => setC({ ...c, modele_bulletin: e.target.value })} />
-    <label>Suggestions d'appréciation : seuil (fraction de la base) | texte</label><textarea value={seuils} onChange={(e) => setC({ ...c, appreciations: e.target.value.split("\n").filter(Boolean).map((l) => { const [m, ...t] = l.split("|"); return { min: parseFloat(m) || 0, texte: t.join("|") }; }) })} />
-    <p style={{ marginTop: 16 }}><button className="btn" onClick={() => safe(say, () => send("PUT", "/parametres/", { ...c, matieres: c.matieres.filter(Boolean), types: c.types.filter(Boolean), periodes: c.periodes.filter(Boolean), canevas: c.canevas.filter(Boolean) }), "✅ Enregistrement réussi")}>Enregistrer les paramètres</button>
-      <button className="btn danger" onClick={() => { localStorage.clear(); onLogout(); }}>Se déconnecter</button></p></>);
+  const enregistrer = async () => {
+    const propre = { ...c, matieres: c.matieres.filter(Boolean).map((x) => x.trim()), types: c.types.filter(Boolean).map((x) => x.trim()),
+      periodes: c.periodes.filter(Boolean).map((x) => x.trim()), canevas: c.canevas.filter(Boolean).map((x) => x.trim()) };
+    const r = await safe(say, () => send("PUT", "/parametres/", propre), "✅ Paramètres enregistrés.");
+    if (r !== undefined && !r?.queued) recharger(); // une écriture seulement mise en file ne doit pas effacer la saisie
+  };
+  const enAttente = pending();
+  return (<>
+    <div className="page-header">
+      <h1>Paramètres</h1>
+      <p className="subtitle">Réglages et listes utilisés par vos fiches, vos évaluations et vos bulletins.</p>
+    </div>
+    <p className="pill">Valeurs provisoires de l'application : aucune n'est une règle officielle — à valider avec les documents pédagogiques et administratifs de référence.</p>
+
+    <section className="card param-section">
+      <h2>Année scolaire et calculs</h2>
+      <p className="param-aide">Ces réglages s'appliquent aux moyennes, aux résultats et aux bulletins.</p>
+      <div className="param-grille">
+        <div>
+          <label htmlFor="p-annee_scolaire">Année scolaire</label>
+          <input id="p-annee_scolaire" placeholder="2025/2026" value={c.annee_scolaire || ""} onChange={(e) => set("annee_scolaire", e.target.value)} />
+          <p className="param-aide">Reprise sur vos fiches et vos documents.</p>
+        </div>
+        <div>
+          <label htmlFor="p-base_moyenne">Base de la moyenne</label>
+          <input id="p-base_moyenne" type="number" min="1" value={c.base_moyenne} onChange={(e) => set("base_moyenne", +e.target.value)} />
+          <p className="param-aide">Toutes les notes sont ramenées sur cette base (ex. 20).</p>
+        </div>
+        <div>
+          <label htmlFor="p-modele_bulletin">Modèle de bulletin / livret</label>
+          <input id="p-modele_bulletin" value={c.modele_bulletin} onChange={(e) => set("modele_bulletin", e.target.value)} />
+          <p className="param-aide">Mention imprimée sur les documents : aucun modèle officiel n'est revendiqué.</p>
+        </div>
+        <div>
+          <label htmlFor="p-classement">Classement des élèves</label>
+          <label className="case"><input id="p-classement" type="checkbox" checked={c.classement} onChange={(e) => set("classement", e.target.checked)} /> Afficher le rang dans les résultats et les bulletins</label>
+        </div>
+      </div>
+    </section>
+
+    <section className="card param-section">
+      <h2>Listes pédagogiques</h2>
+      <p className="param-aide">Une valeur par ligne ; supprimez une ligne pour retirer la valeur. Ces listes alimentent les menus de toute l'application.</p>
+      <div className="param-grille">
+        {liste("matieres", "Matières", "Utilisées pour les fiches et les évaluations.")}
+        {liste("types", "Types d'évaluation", "Ex. Devoir, Évaluation, Composition.")}
+        {liste("periodes", "Périodes", "Ordre d'affichage dans l'application.")}
+        {liste("canevas", "Rubriques de la fiche pédagogique", "Titres des sections de vos fiches.")}
+      </div>
+    </section>
+
+    <section className="card param-section">
+      <h2>Suggestions d'appréciation</h2>
+      <p className="param-aide">Proposition faite à partir de la moyenne : elle n'est jamais appliquée sans votre validation. Une règle par ligne, au format <code>seuil|texte</code>, le seuil étant une fraction de la base (ex. <code>0.5|Résultats satisfaisants</code>).</p>
+      <textarea id="p-appreciations" value={seuils} onChange={(e) => set("appreciations", e.target.value.split("\n").filter(Boolean).map((l) => { const [m, ...t] = l.split("|"); return { min: parseFloat(m) || 0, texte: t.join("|") }; }))} />
+    </section>
+
+    <section className="card param-section zone-danger">
+      <h2>Compte et session</h2>
+      <p className="param-aide">Vos données restent sur le serveur ; se déconnecter retire seulement l'accès de cet appareil{enAttente ? ` (${enAttente} modification(s) en attente y resteront enregistrées jusqu'à votre prochaine connexion)` : ""}.</p>
+      <button className="btn danger" onClick={() => { if (confirmer("Se déconnecter de cet appareil ?")) onLogout(); }}>Se déconnecter</button>
+    </section>
+
+    <div className="barre-actions">
+      <button className="btn" disabled={!modifie} onClick={enregistrer}>Enregistrer les paramètres</button>
+      <button className="btn sec" disabled={!modifie} onClick={() => setC(cfg)}>Annuler les modifications</button>
+      {modifie ? <span className="etat-modif" role="status">● Modifications non enregistrées</span> : <span className="muted" role="status">À jour</span>}
+    </div>
+  </>);
 }
