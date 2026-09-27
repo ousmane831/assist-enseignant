@@ -1,5 +1,11 @@
+import os
+import shutil
+import tempfile
+
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
 from rest_framework.test import APITestCase
 from core import models as m
 
@@ -42,7 +48,7 @@ class Authentification(Base):
 
     def test_acces_non_authentifie(self):
         self.client.force_authenticate(None)
-        for url in ("/api/classes/", "/api/eleves/", "/api/fiches/", "/api/evaluations/", "/api/me/", "/api/parametres/"):
+        for url in ("/api/classes/", "/api/eleves/", "/api/fiches/", "/api/evaluations/", "/api/me/", "/api/parametres/", "/api/profil/"):
             self.assertEqual(self.client.get(url).status_code, 401, url)
 
 
@@ -196,6 +202,7 @@ class Validation(Base):
         ev.refresh_from_db(); self.assertEqual(ev.statut, "verifie")
         self.notes(ev, {self.e1: 13})
         ev.refresh_from_db(); self.assertEqual(ev.statut, "brouillon", "modifier annule la vérification")
+        self.notes(ev, {self.e2: ""})  # note manquante : seules les notes demandent encore confirmation
         self.client.post(self.url("verifier"))
         r = self.client.post(self.url("valider"), {}, format="json")
         self.assertEqual(r.status_code, 409); self.assertTrue(r.json()["confirmation_requise"])
@@ -221,24 +228,73 @@ class Validation(Base):
 
 
 class Appreciations(Base):
-    def test_proposition_modification_validation(self):
-        ev = self.ev(); self.notes(ev, {self.e1: 18, self.e2: 6})
-        p = self.client.get(self.url("proposer")).json()
-        self.assertEqual(set(p), {str(self.e1.id), str(self.e2.id)}); self.assertFalse(any(x["validee"] for x in p.values()))
-        self.assertEqual(m.Appreciation.objects.count(), 0, "une proposition n'est pas enregistrée")
-        put = lambda **kw: self.client.put(self.url("appreciations"), [{"eleve": self.e1.id, **kw}], format="json")
-        self.assertEqual(put(texte="Bon travail", validee=False).status_code, 200)
-        self.assertFalse(m.Appreciation.objects.get(eleve=self.e1).validee)
-        put(texte="Bon travail", validee=True); self.assertTrue(m.Appreciation.objects.get(eleve=self.e1).validee)
-        put(texte="Bon travail, à poursuivre", validee=False); self.assertFalse(m.Appreciation.objects.get(eleve=self.e1).validee)
-        put(texte="", validee=True); a = m.Appreciation.objects.get(eleve=self.e1)
-        self.assertEqual((a.texte, a.validee), ("", False), "suppression possible ; jamais validée sans texte")
+    """Les appréciations sont remplies automatiquement à partir des moyennes : rien n'est à saisir.
 
-    def test_appreciation_non_validee_absente_du_bulletin(self):
-        ev = self.ev(); self.notes(ev, {self.e1: 12})
-        self.client.put(self.url("appreciations"), [{"eleve": self.e1.id, "texte": "Brouillon", "validee": False}], format="json")
+    L'enseignant peut seulement personnaliser un élève ; son texte validé prévaut alors sur la règle,
+    et un texte non validé (brouillon) n'est jamais retenu.
+    """
+
+    def test_remplissage_automatique_sans_saisie(self):
+        ev = self.ev(); self.notes(ev, {self.e1: 18, self.e2: 9})
+        r = self.client.get(self.url("appreciations")).json()
+        self.assertEqual((r[str(self.e1.id)]["texte"], r[str(self.e2.id)]["texte"]),
+                         ("Bons résultats", "Résultats à surveiller"))
+        self.assertTrue(all(x["source"] == "auto" and x["validee"] is False for x in r.values()))
+        self.assertEqual(m.Appreciation.objects.count(), 0, "aucune saisie n'est nécessaire : rien n'est enregistré")
+
+    def test_eleve_sans_note_ne_recoit_pas_d_appreciation(self):
+        ev = self.ev(); self.notes(ev, {self.e1: 18})
+        self.assertEqual(self.client.get(self.url("appreciations")).json()[str(self.e3.id)]["texte"], "")
+
+    def test_bareme_des_parametres_applique(self):
+        self.client.put("/api/parametres/", {"appreciations": [{"min": 0, "texte": "Faible"}, {"min": 0.75, "texte": "Excellent"}]}, format="json")
+        ev = self.ev(); self.notes(ev, {self.e1: 16, self.e2: 10})
+        r = self.client.get(self.url("appreciations")).json()
+        self.assertEqual((r[str(self.e1.id)]["texte"], r[str(self.e2.id)]["texte"]), ("Excellent", "Faible"))
+
+    def test_texte_personnalise_prime_apres_validation(self):
+        ev = self.ev(); self.notes(ev, {self.e1: 18})
+        put = lambda **kw: self.client.put(self.url("appreciations"), [{"eleve": self.e1.id, **kw}], format="json")
+        self.assertEqual(put(texte="Très bon trimestre", validee=False).status_code, 200)
+        x = self.client.get(self.url("appreciations")).json()[str(self.e1.id)]
+        self.assertEqual((x["texte"], x["source"], x["brouillon"]), ("Bons résultats", "auto", "Très bon trimestre"),
+                         "un texte non validé ne remplace pas l'appréciation automatique")
+        put(texte="Très bon trimestre", validee=True)
+        x = self.client.get(self.url("appreciations")).json()[str(self.e1.id)]
+        self.assertEqual((x["texte"], x["source"], x["validee"]), ("Très bon trimestre", "enseignant", True),
+                         "le texte validé par l'enseignant prévaut")
+        put(texte="", validee=True)  # retour à la règle automatique
+        x = self.client.get(self.url("appreciations")).json()[str(self.e1.id)]
+        a = m.Appreciation.objects.get(eleve=self.e1)
+        self.assertEqual((x["texte"], x["source"], x["brouillon"]), ("Bons résultats", "auto", ""))
+        self.assertEqual((a.texte, a.validee), ("", False), "jamais validée sans texte")
+
+    def test_bulletin_rempli_automatiquement(self):
+        ev = self.ev(); self.notes(ev, {self.e1: 18})
+        self.client.put(self.url("appreciations"), [{"eleve": self.e1.id, "texte": "Brouillon de travail", "validee": False}], format="json")
         self.client.post(self.url("verifier")); self.client.post(self.url("valider"), {"confirmer": True}, format="json")
-        self.assertEqual(self.client.get(self.url("bulletins")).json()["eleves"][0]["appreciation"], "")
+        b = self.client.get(self.url("bulletins")).json()["eleves"][0]
+        self.assertEqual(b["appreciation"], "Bons résultats", "le bulletin est rempli sans aucune saisie")
+        self.assertTrue(b["appreciation_auto"])
+
+    def test_bulletin_utilise_le_texte_valide_par_l_enseignant(self):
+        ev = self.ev(); self.notes(ev, {self.e1: 18})
+        self.client.put(self.url("appreciations"), [{"eleve": self.e1.id, "texte": "Élève très sérieux", "validee": True}], format="json")
+        self.client.post(self.url("verifier")); self.client.post(self.url("valider"), {"confirmer": True}, format="json")
+        b = self.client.get(self.url("bulletins")).json()["eleves"][0]
+        self.assertEqual((b["appreciation"], b["appreciation_auto"]), ("Élève très sérieux", False))
+
+    def test_appreciation_non_modifiable_sur_periode_validee(self):
+        ev = self.ev(); self.notes(ev, {self.e1: 12})
+        self.client.post(self.url("verifier")); self.client.post(self.url("valider"), {"confirmer": True}, format="json")
+        self.assertEqual(self.client.put(self.url("appreciations"), [{"eleve": self.e1.id, "texte": "x"}], format="json").status_code, 409)
+
+    def test_verification_annonce_des_appreciations_sans_saisie(self):
+        ev = self.ev(); self.notes(ev, {self.e1: 18, self.e2: 6, self.e3: 12})
+        v = self.client.get(self.url("verification")).json()
+        self.assertEqual((v["appreciations"], v["appreciations_auto"], v["appreciations_personnalisees"]), (3, 3, 0))
+        self.assertEqual(v["problemes"], [], "les appréciations ne bloquent plus la validation")
+        self.assertTrue(v["informations"])
 
 
 class Fiches(Base):
@@ -423,4 +479,75 @@ class GestionDemandesAdmin(APITestCase):
         self.client.force_authenticate(self.adm)
         r = self.client.post(self.URL, {"nom_complet": "X"}, format="json")
         self.assertEqual(r.status_code, 405, "les demandes se déposent via l'écran de connexion public")
-        self.assertEqual(m.DemandeCompte.objects.count(), 1)
+        self.assertEqual(m.DemandeCompte.objects.count(), 1, "aucune demande créée par cette route de gestion")
+
+
+# ---------------- Profil de l'enseignant : coordonnées et photo ----------------
+MEDIAS_TEST = tempfile.mkdtemp(prefix="ae-medias-")  # les photos de test ne doivent pas polluer backend/media
+
+
+@override_settings(MEDIA_ROOT=MEDIAS_TEST)
+class Profil(Base):
+    URL, PHOTO = "/api/profil/", "/api/profil/photo/"
+
+    def setUp(self):  # chaque test part d'un dossier de photos vide : les fichiers ne se mélangent pas
+        super().setUp()
+        shutil.rmtree(MEDIAS_TEST, ignore_errors=True)
+        os.makedirs(os.path.join(MEDIAS_TEST, "profils"), exist_ok=True)
+
+    def image(self, nom="photo.jpg", type_="image/jpeg"):
+        return SimpleUploadedFile(nom, b"\xff\xd8\xff\xe0" + b"x" * 2048, content_type=type_)
+
+    def fichiers(self):  # ce qui est réellement écrit sur le disque
+        d = os.path.join(MEDIAS_TEST, "profils")
+        return sorted(os.listdir(d)) if os.path.isdir(d) else []
+
+    def test_profil_vide_par_defaut_et_proprietaire_impose(self):
+        r = self.client.get(self.URL)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual((r.json()["ecole"], r.json()["photo"], r.json()["user"]), ("", None, self.a.id))  # pas de photo : null (DRF)
+
+    def test_enregistrement_normalisation_et_nom_du_compte(self):
+        r = self.client.put(self.URL, {"nom": "Diop", "prenom": "Aïssatou", "telephone": "77 123 45 67",
+                                       "corps": "instituteur", "ecole": "École élémentaire 1", "region": "Thiès"}, format="json")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["telephone"], "+221771234567")
+        self.assertEqual(self.a.last_name, "Diop")                                  # le nom du compte suit le profil
+        self.assertEqual(self.client.get("/api/me/").json()["nom"], "Aïssatou Diop")
+        d = self.client.put(self.URL, {"telephone": ""}, format="json").json()       # un champ vidé reste vide…
+        self.assertEqual((d["telephone"], d["ecole"], d["nom"]), ("", "École élémentaire 1", "Diop"))  # …sans rien effacer
+
+    def test_telephone_invalide_et_corps_inconnu_refuses(self):
+        self.assertEqual(self.client.put(self.URL, {"telephone": "123"}, format="json").status_code, 400)
+        self.assertEqual(self.client.put(self.URL, {"corps": "directeur"}, format="json").status_code, 400)
+
+    def test_profil_prive(self):
+        self.client.put(self.URL, {"ecole": "École A"}, format="json")
+        self.client.force_authenticate(self.b)
+        self.assertEqual((self.client.get(self.URL).json()["ecole"], self.client.get(self.URL).json()["user"]), ("", self.b.id))
+        self.client.force_authenticate(None)
+        self.assertEqual(self.client.get(self.URL).status_code, 401)
+
+    def test_photo_envoyee_remplacee_et_retiree(self):
+        r = self.client.post(self.PHOTO, {"photo": self.image()}, format="multipart")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("/media/profils/", r.json()["photo"])
+        self.assertTrue(self.client.get("/api/me/").json()["photo"])                 # la barre du haut peut l'afficher
+        self.assertEqual(self.client.post(self.PHOTO, {"photo": self.image("autre.png", "image/png")}, format="multipart").status_code, 200)
+        self.assertEqual(self.fichiers(), ["autre.png"], "la photo remplacée est effacée : aucun fichier orphelin")
+        self.assertEqual(self.client.delete(self.PHOTO).status_code, 200)
+        self.assertEqual((self.client.get("/api/me/").json()["photo"], self.fichiers()), ("", []))
+
+    def test_photo_refusee_trop_lourde_ou_mauvais_format(self):
+        gros = SimpleUploadedFile("g.jpg", b"x" * (2 * 1024 * 1024 + 1), content_type="image/jpeg")
+        self.assertEqual(self.client.post(self.PHOTO, {"photo": gros}, format="multipart").status_code, 400)
+        texte = SimpleUploadedFile("n.txt", b"pas une image", content_type="text/plain")
+        self.assertEqual(self.client.post(self.PHOTO, {"photo": texte}, format="multipart").status_code, 400)
+        self.assertEqual(self.fichiers(), [], "un fichier refusé n'est jamais écrit sur le disque")
+
+    def test_photo_ne_se_partage_pas_entre_enseignants(self):
+        self.assertEqual(self.client.post(self.PHOTO, {"photo": self.image()}, format="multipart").status_code, 200)
+        self.client.force_authenticate(self.b)
+        self.assertEqual(self.client.get("/api/me/").json()["photo"], "")            # b n'hérite pas de la photo d'a
+        self.assertEqual(self.client.get(self.URL).json()["photo"], None)            # ni de son profil
+        self.assertEqual(m.Profil.objects.filter(user=self.a).count(), 1)

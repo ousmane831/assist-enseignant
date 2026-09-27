@@ -1,6 +1,6 @@
 import { useContext, useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { call, draftSet, drafts, get, pending, send } from "./api";
+import { call, draftSet, drafts, get, mediaUrl, pending, send, upload } from "./api";
 import BulletinDocument, { exporterPdf } from "./BulletinDocument";
 import { Empty, Say, Steps, Wait, confirmer, useGet, DrapeauSenegal } from "./ui";
 
@@ -9,6 +9,10 @@ const NIVEAUX = ["CI", "CP", "CE1", "CE2", "CM1", "CM2"];
 // les académies (IA) sont régionales ; le libellé de l'IEF reste libre (chaque département a la sienne).
 const REGIONS = ["Dakar", "Diourbel", "Fatick", "Kaffrine", "Kaolack", "Kédougou", "Kolda", "Louga", "Matam", "Saint-Louis", "Sédhiou", "Tambacounda", "Thiès", "Ziguinchor"];
 const PIECES = [["cni", "Carte nationale d'identité"], ["passeport", "Passeport"], ["carte_electeur", "Carte d'électeur"], ["carte_pro", "Carte professionnelle"], ["autre", "Autre pièce d'identité"]];
+// Corps d'appartenance proposés dans le profil. Valeurs PROVISOIRES (mêmes choix que le modèle Profil, côté serveur),
+// à ajuster avec les enseignants : aucune liste officielle n'est imposée par l'application.
+const CORPS = [["", "—"], ["instituteur", "Instituteur"], ["instituteur_adjoint", "Instituteur adjoint"],
+  ["maitre", "Maître contractuel"], ["professeur_ecole", "Professeur d'école"], ["autre", "Autre"]];
 const dt = (d) => new Date(d).toLocaleDateString("fr-FR");
 const msg = (e) => e?.status === 0 ? "🟠 Cette action nécessite une connexion Internet." : e?.status === 404 ? "❌ Cette page n'existe plus ou n'est plus accessible." : e?.status === 400 || e?.status === 409 ? "⚠️ " + (e.detail || "Vérifiez les informations saisies.") : e?.status === 401 ? "Votre session a expiré." : e?.status === 429 ? "⏳ Trop de tentatives en peu de temps. Patientez une minute, puis réessayez." : "❌ Impossible d'enregistrer. Vos données locales sont conservées.";
 // Écran de connexion : distinguer un vrai refus d'identifiants d'un problème technique.
@@ -622,7 +626,9 @@ export function Notes() {
       <td style={{ width: 150 }}><input inputMode="decimal" disabled={lock} aria-label={"Note de " + r.nom} className={bad(r.valeur) ? "bad" : ""} value={r.valeur ?? ""} onChange={(e) => set(i, "valeur", e.target.value)} onBlur={() => save(r)}
         onKeyDown={(e) => e.key === "Enter" && e.target.closest("tr").nextSibling?.querySelector("input")?.focus()} /></td>
       <td><input disabled={lock} aria-label={"Observation pour " + r.nom} value={r.observation ?? ""} onChange={(e) => set(i, "observation", e.target.value)} onBlur={() => save(r)} /></td></tr>))}</tbody></table></div>
-    <p className="muted">Chaque saisie est sauvegardée sur cet appareil immédiatement, puis envoyée au serveur. Entrée passe à l'élève suivant.</p><Link className="btn" to={`/evaluations/${id}/resultats`}>Voir les résultats</Link></>);
+    <p className="muted">Chaque saisie est sauvegardée sur cet appareil immédiatement, puis envoyée au serveur. Entrée passe à l'élève suivant.</p>
+    <p className="muted">🤖 Les appréciations de la période sont déduites automatiquement des moyennes (barème des <Link to="/parametres">Paramètres</Link>) : aucune saisie n'est nécessaire de votre part.</p>
+    <Link className="btn" to={`/evaluations/${id}/resultats`}>Voir les résultats</Link></>);
 }
 
 export function Resultats() {
@@ -636,26 +642,45 @@ export function Resultats() {
     <p style={{ marginTop: 16 }}><Link className="btn sec" to={`/evaluations/${id}/notes`}>Modifier les notes</Link><Link className="btn" to={`/classes/${ev.classe}/appreciations?periode=${encodeURIComponent(ev.periode)}`}>Passer aux appréciations</Link></p></>);
 }
 
+// Appréciations : le serveur les REMPLIT automatiquement (barème des Paramètres appliqué aux moyennes).
+// L'enseignant n'a donc rien à saisir ; il peut personnaliser un élève, et son texte validé prévaut sur la règle.
 export function Appreciations() {
   const { id } = useParams(), [sp] = useSearchParams(), say = useContext(Say), per = sp.get("periode") || "", q = `?periode=${encodeURIComponent(per)}`;
-  const [res] = useGet(`/classes/${id}/resultats/${q}`), [saved] = useGet(`/classes/${id}/appreciations/${q}`), [ver] = useGet(`/classes/${id}/verification/${q}`), [a, setA] = useState({}), [edit, setEdit] = useState({});
+  const [res] = useGet(`/classes/${id}/resultats/${q}`), [saved] = useGet(`/classes/${id}/appreciations/${q}`), [ver] = useGet(`/classes/${id}/verification/${q}`), [a, setA] = useState({}), [travail, setTravail] = useState({});
   useEffect(() => { if (saved) setA(saved); }, [saved]);
   if (!res || !ver) return <Wait />;
   const lock = ver.statut === "valide";
-  const put = (eid, p) => { const n = { texte: "", validee: false, ...(a[eid] || {}), ...p }; setA((x) => ({ ...x, [eid]: n })); return n; };
-  const save = (eid, n, ok) => safe(say, () => send("PUT", `/classes/${id}/appreciations/${q}`, [{ eleve: eid, texte: n.texte, validee: n.validee }]), ok);
-  const proposer = async () => { const p = await safe(say, () => call("GET", `/classes/${id}/proposer/${q}`)); if (p) setA((x) => { const m = { ...x }; Object.entries(p).forEach(([k, v]) => { if (!m[k]?.validee) m[k] = v; }); return m; }); };
+  const ligne = (eid) => a[eid] || { texte: "", auto: "", source: "auto", brouillon: "", validee: false };
+  // Valeur affichée : ce que l'enseignant est en train d'écrire, sinon son texte enregistré, sinon l'appréciation automatique.
+  const champ = (eid) => travail[eid] ?? (ligne(eid).brouillon || ligne(eid).texte);
+  const envoyer = async (list, ok) => {
+    const r = await safe(say, () => send("PUT", `/classes/${id}/appreciations/${q}`, list), ok);
+    if (r && !r?.queued) { setA(r); setTravail((x) => { const m = { ...x }; list.forEach((g) => delete m[g.eleve]); return m; }); }
+    return r;
+  };
+  const personnalises = res.filter((r) => ligne(r.eleve).brouillon); // textes écrits mais non validés : jamais publiés en l'état
+  const validerTout = () => envoyer(personnalises.map((r) => ({ eleve: r.eleve, texte: ligne(r.eleve).brouillon, validee: true })), "✅ Vos textes personnalisés sont validés");
+  const revenirTout = () => confirmer("Revenir aux appréciations automatiques pour toute la classe ?\n\nLes textes personnalisés seront retirés : l'appréciation sera de nouveau déduite des moyennes.") && envoyer(res.map((r) => ({ eleve: r.eleve, texte: "", validee: false })), "🤖 Appréciations automatiques rétablies pour toute la classe");
   return (<><Steps items={["Évaluation", "Classe", "Notes", "Résultats", "Appréciations", "Vérification", "Bulletin"]} current={4} /><h1>Appréciations : {per}</h1>
-    <p className="muted">Les propositions sont des suggestions : vous restez maître de chaque appréciation, qui n'est définitive qu'une fois validée.</p>
+    <p className="pill">🤖 Remplies automatiquement à partir des moyennes (barème défini dans <Link to="/parametres">Paramètres</Link>) : rien à saisir. Personnalisez un élève seulement si vous le souhaitez — votre texte validé prévaut alors sur la règle.</p>
     {lock && <p className="warn">🔒 Résultats validés : <Link to={`/classes/${id}/verification${q}`}>rouvrir pour modifier</Link></p>}
-    <button className="btn sec" disabled={lock} onClick={proposer}>Proposer des appréciations</button>
-    {res.map((r) => { const x = a[r.eleve] || { texte: "", validee: false }, ed = !lock && (edit[r.eleve] || !x.texte);
-      return (<div className="card" key={r.eleve} style={{ marginBottom: 10 }}><strong>{r.nom}</strong> <span className="muted">Moyenne : {r.moyenne ?? "—"}</span> {x.validee && <span className="badge">✅ Validée</span>}
-        {x.texte && !x.validee && <div className="muted">Proposition non validée</div>}
-        <textarea aria-label={"Appréciation de " + r.nom} disabled={!ed} value={x.texte} placeholder="Écrire une appréciation" onChange={(e) => put(r.eleve, { texte: e.target.value, validee: false })} onBlur={() => ed && x.texte !== (saved?.[r.eleve]?.texte ?? "") && save(r.eleve, x)} />
-        <button className="btn sec sm" disabled={lock} onClick={() => { setEdit({ ...edit, [r.eleve]: true }); save(r.eleve, put(r.eleve, { validee: false })); }}>Modifier</button>
-        <button className="btn sm" disabled={lock || !x.texte.trim()} onClick={() => { setEdit({ ...edit, [r.eleve]: false }); save(r.eleve, put(r.eleve, { validee: true }), "✅ Appréciation validée"); }}>Valider</button>
-        <button className="btn danger sm" disabled={lock || !x.texte} onClick={() => { if (confirmer("Supprimer cette appréciation ?")) { setEdit({ ...edit, [r.eleve]: true }); save(r.eleve, put(r.eleve, { texte: "", validee: false })); } }}>Supprimer</button></div>); })}
+    <p className="muted">{ver.appreciations} appréciation(s) prête(s) sur {ver.eleves} · {ver.appreciations_auto ?? 0} automatique(s) · {ver.appreciations_personnalisees ?? 0} personnalisée(s)</p>
+    {personnalises.length > 0 && <p className="warn">✏️ {personnalises.length} texte(s) personnalisé(s) enregistré(s) mais non validé(s) : l'appréciation automatique est utilisée à leur place jusqu'à validation.</p>}
+    <p><button className="btn sec sm" disabled={lock || !personnalises.length} onClick={validerTout}>Valider mes {personnalises.length} texte(s) personnalisé(s)</button>
+      <button className="btn sec sm" disabled={lock} onClick={revenirTout}>Revenir aux appréciations automatiques</button></p>
+    {res.map((r) => { const x = ligne(r.eleve), v = champ(r.eleve), modifie = v.trim() !== (x.brouillon || x.texte).trim();
+      return (<div className="card" key={r.eleve} style={{ marginBottom: 10 }}>
+        <strong>{r.nom}</strong> <span className="muted">Moyenne : {r.moyenne ?? "—"}</span>{" "}
+        {x.source === "enseignant" ? <span className="badge">✏️ Personnalisée</span> : x.brouillon ? <span className="badge">✏️ À valider</span> : <span className="badge">🤖 Automatique</span>}
+        {modifie && <span className="muted"> · non enregistré</span>}
+        <textarea aria-label={"Appréciation de " + r.nom} disabled={lock} value={v}
+          placeholder={x.auto || "Aucune note dans cette période : pas encore d'appréciation automatique"}
+          onChange={(e) => setTravail((t) => ({ ...t, [r.eleve]: e.target.value }))}
+          onBlur={() => !lock && modifie && envoyer([{ eleve: r.eleve, texte: v, validee: false }])} />
+        <p className="param-aide">Barème appliqué : « {x.auto || "—"} »{x.source === "enseignant" ? " — votre texte validé prévaut" : " — c'est l'appréciation utilisée"}.</p>
+        <button className="btn sm" disabled={lock || !v.trim()} onClick={() => envoyer([{ eleve: r.eleve, texte: v, validee: true }], "✅ Appréciation enregistrée")}>Enregistrer mon texte</button>
+        <button className="btn sec sm" disabled={lock || (!x.brouillon && x.source === "auto")} onClick={() => envoyer([{ eleve: r.eleve, texte: "", validee: false }], "🤖 Appréciation automatique rétablie")}>Retour à la règle automatique</button>
+      </div>); })}
     <Link className="btn" to={`/classes/${id}/verification${q}`}>Passer à la vérification</Link></>);
 }
 
@@ -670,7 +695,8 @@ export function Verification() {
   const S = { brouillon: "📝 Brouillon", verifie: "🔎 Vérifiés", valide: "✅ Validés" }[v.statut];
   return (<><Steps items={["Évaluation", "Classe", "Notes", "Résultats", "Appréciations", "Vérification", "Bulletin"]} current={5} /><h1>Vérification des résultats — {per}</h1>
     <p><span className="badge">{S}</span></p>
-    <div className="card"><p>{v.eleves} élèves</p><p>{v.notes_saisies} notes saisies (sur {v.notes_attendues})</p><p>Moyenne générale : {v.moyenne_generale ?? "—"}</p><p>Appréciations validées : {v.appreciations}/{v.eleves}</p><p>Erreurs : {v.erreurs}</p></div>
+    <div className="card"><p>{v.eleves} élèves</p><p>{v.notes_saisies} notes saisies (sur {v.notes_attendues})</p><p>Moyenne générale : {v.moyenne_generale ?? "—"}</p><p>Appréciations prêtes : {v.appreciations}/{v.eleves} — {v.appreciations_auto ?? 0} automatique(s), {v.appreciations_personnalisees ?? 0} personnalisée(s)</p><p>Erreurs : {v.erreurs}</p></div>
+    {(v.informations || []).map((i) => <p key={i} className="muted">🤖 {i}</p>)}
     {v.problemes.map((p) => <p key={p} className="warn">⚠️ {p}</p>)}
     <p style={{ marginTop: 16 }}>
       {v.statut !== "valide" && <Link className="btn sec" to={`/classes/${id}/appreciations${q}`}>Modifier</Link>}
@@ -753,6 +779,83 @@ export function Eleve() {
   </>);
 }
 
+// Profil de l'enseignant : coordonnées et informations professionnelles, toutes facultatives (le compte reste
+// utilisable sans). Le nom enregistré ici est celui affiché partout dans l'application. La photo exige une
+// connexion (un fichier ne se met pas en file d'attente) et n'est visible que par son propriétaire.
+export function Profil() {
+  const say = useContext(Say), [p, reload] = useGet("/profil/"), [f, setF] = useState(null), [envoi, setEnvoi] = useState(false);
+  useEffect(() => { if (p) setF(p); }, [p]);
+  if (!f) return <Wait />;
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const enregistrer = async () => { const r = await safe(say, () => send("PUT", "/profil/", f), "✅ Profil enregistré"); if (r && !r.queued) reload(); };
+  const changerPhoto = async (ev) => {
+    const fichier = ev.target.files?.[0]; if (!fichier) return;
+    setEnvoi(true);
+    try { await upload("/profil/photo/", fichier); say("✅ Photo enregistrée"); reload(); dispatchEvent(new CustomEvent("profil-modifie")); }
+    catch (e) { say(msg(e)); } finally { setEnvoi(false); ev.target.value = ""; }
+  };
+  const retirerPhoto = async () => {
+    if (!confirmer("Retirer votre photo de profil ?")) return;
+    await safe(say, () => call("DELETE", "/profil/photo/"), "Photo retirée");
+    reload(); dispatchEvent(new CustomEvent("profil-modifie"));
+  };
+  const initiales = ((f.prenom?.[0] || "") + (f.nom?.[0] || "")).toUpperCase();
+  return (<>
+    <div className="page-header">
+      <h1>Mon profil</h1>
+      <p className="subtitle">Vos coordonnées et vos informations professionnelles</p>
+    </div>
+
+    <div className="card">
+      <div className="profil-tete">
+        {f.photo ? <img className="profil-photo" src={mediaUrl(f.photo)} alt="Photo de profil" />
+          : <span className="profil-photo vide" aria-hidden="true">{initiales || "👤"}</span>}
+        <div className="profil-tete-texte">
+          <label htmlFor="p-photo">Photo de profil (JPEG, PNG ou WebP, 2 Mo maximum)</label>
+          <input id="p-photo" type="file" accept="image/jpeg,image/png,image/webp" disabled={envoi} onChange={changerPhoto} />
+          <p className="param-aide">{envoi ? "Envoi de la photo…" : "Visible uniquement par vous. L'envoi nécessite une connexion Internet."}</p>
+          {f.photo && <button className="btn sec sm" onClick={retirerPhoto}>Retirer la photo</button>}
+        </div>
+      </div>
+
+      <div className="row">
+        <div><label htmlFor="p-civilite">Civilité</label>
+          <select id="p-civilite" value={f.civilite || ""} onChange={set("civilite")}><option value="">—</option><option value="mme">Madame</option><option value="m">Monsieur</option></select></div>
+        <div><label htmlFor="p-nom">Nom</label><input id="p-nom" value={f.nom || ""} onChange={set("nom")} /></div>
+        <div><label htmlFor="p-prenom">Prénoms</label><input id="p-prenom" value={f.prenom || ""} onChange={set("prenom")} /></div>
+      </div>
+
+      <div className="row">
+        <div><label htmlFor="p-tel">Téléphone</label><input id="p-tel" value={f.telephone || ""} onChange={set("telephone")} placeholder="77 123 45 67" /></div>
+        <div><label htmlFor="p-email">E-mail (facultatif)</label><input id="p-email" type="email" value={f.email || ""} onChange={set("email")} /></div>
+      </div>
+
+      <div className="row">
+        <div><label htmlFor="p-matricule">Matricule / n° d'identification (facultatif)</label><input id="p-matricule" value={f.matricule || ""} onChange={set("matricule")} /></div>
+        <div><label htmlFor="p-corps">Corps</label><select id="p-corps" value={f.corps || ""} onChange={set("corps")}>{CORPS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+      </div>
+
+      <div className="row">
+        <div><label htmlFor="p-ecole">École / établissement</label><input id="p-ecole" value={f.ecole || ""} onChange={set("ecole")} /></div>
+        <div><label htmlFor="p-region">Région</label>
+          <select id="p-region" value={f.region || ""} onChange={set("region")}><option value="">—</option>{REGIONS.map((r) => <option key={r}>{r}</option>)}</select></div>
+      </div>
+
+      <div className="row">
+        <div><label htmlFor="p-ia">IA (Inspection d'Académie)</label>
+          <input id="p-ia" list="p-ia-liste" value={f.ia || ""} onChange={set("ia")} placeholder="ex. IA de Thiès" />
+          <datalist id="p-ia-liste">{REGIONS.map((r) => <option key={r} value={`IA de ${r}`} />)}</datalist></div>
+        <div><label htmlFor="p-ief">IEF (Inspection de l'Éducation et de la Formation)</label><input id="p-ief" value={f.ief || ""} onChange={set("ief")} /></div>
+      </div>
+    </div>
+
+    <div className="barre-actions">
+      <button className="btn" onClick={enregistrer}>💾 Enregistrer</button>
+      <span className="muted">Ces informations restent privées : aucun autre enseignant ne les voit.</span>
+    </div>
+  </>);
+}
+
 export function Parametres({ onLogout }) {
   const say = useContext(Say), [cfg, recharger] = useGet("/parametres/"), [c, setC] = useState(null);
   useEffect(() => { if (cfg) setC(cfg); }, [cfg]);
@@ -818,8 +921,8 @@ export function Parametres({ onLogout }) {
     </section>
 
     <section className="card param-section">
-      <h2>Suggestions d'appréciation</h2>
-      <p className="param-aide">Proposition faite à partir de la moyenne : elle n'est jamais appliquée sans votre validation. Une règle par ligne, au format <code>seuil|texte</code>, le seuil étant une fraction de la base (ex. <code>0.5|Résultats satisfaisants</code>).</p>
+      <h2>Appréciations automatiques</h2>
+      <p className="param-aide">Barème appliqué <strong>automatiquement</strong> à la moyenne de la période : l'application remplit l'appréciation de chaque élève, vous n'avez rien à saisir. Une règle par ligne, au format <code>seuil|texte</code>, le seuil étant une fraction de la base (ex. <code>0.5|Résultats satisfaisants</code>) ; c'est le seuil le plus élevé atteint qui est retenu. Un texte que vous validez pour un élève prévaut toujours sur ce barème.</p>
       <textarea id="p-appreciations" value={seuils} onChange={(e) => set("appreciations", e.target.value.split("\n").filter(Boolean).map((l) => { const [m, ...t] = l.split("|"); return { min: parseFloat(m) || 0, texte: t.join("|") }; }))} />
     </section>
 

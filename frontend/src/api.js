@@ -33,6 +33,22 @@ export async function get(path) {
 }
 export const clearCache = () => Object.keys(ls()).filter((k) => k.startsWith(`c:${user()}:`)).forEach((k) => ls().removeItem(k));
 
+// ----- Fichiers (photo de profil) -----
+// Un fichier ne se met pas en file d'attente comme un JSON : l'envoi exige une connexion (message clair sinon).
+export async function upload(path, fichier) {
+  if (!online()) throw new ApiError(0, "Cette action nécessite une connexion Internet.");
+  const t = ls().getItem("token"), fd = new FormData();
+  fd.append("photo", fichier);
+  let r;
+  try { r = await fetch(BASE + path, { method: "POST", headers: t ? { Authorization: "Token " + t } : {}, body: fd }); }
+  catch { throw new ApiError(0, "Connexion impossible."); }
+  if (r.status === 401 && t) { ls().removeItem("token"); emit("session-expired"); }
+  if (!r.ok) { let b = null; try { b = await r.json(); } catch {} throw new ApiError(r.status, detailOf(b)); }
+  return r.json();
+}
+// Adresse complète d'un fichier servi par le serveur : les photos vivent sous MEDIA_URL, pas sous /api/.
+export const mediaUrl = (chemin) => !chemin ? "" : /^https?:/.test(chemin) ? chemin : BASE.replace(/\/api\/?$/, "") + chemin;
+
 // ----- Brouillons locaux (saisie en cours, ex. notes) -----
 const dk = (key) => `d:${user()}:${key}`;
 export const drafts = (key) => J(dk(key), {});

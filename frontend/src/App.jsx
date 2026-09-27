@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
-import { clearCache, dropFailed, failed, flush, get, pending, retryFailed } from "./api";
+import { clearCache, dropFailed, failed, flush, get, mediaUrl, pending, retryFailed } from "./api";
 import { ErrorBoundary, Say, Wait, useGet } from "./ui";
 import * as P from "./pages";
 
@@ -12,11 +12,22 @@ const ICONS = {
   file: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>,
   user: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
   settings: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
-  requests: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+  requests: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>,
+  profil: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5 17c.7-1.8 2-2.8 4-2.8s3.3 1 4 2.8"/><path d="M15 9.5h5M15 13h5"/></svg>
 };
 
-const NAV = [["/", "Tableau de bord", "home"], ["/preparation", "Préparation", "edit"], ["/classes", "Mes classes", "users"],
-  ["/evaluations", "Évaluations", "bar-chart"], ["/fiches", "Mes fiches", "file"], ["/eleves", "Mes élèves", "user"], ["/parametres", "Paramètres", "settings"]];
+// Chaque entrée : [chemin, nom (barre latérale, ordinateur), icône, nom court (mobile, sous l'icône)].
+const NAV = [["/", "Tableau de bord", "home", "Accueil"], ["/preparation", "Préparation", "edit", "Préparer"],
+  ["/classes", "Mes classes", "users", "Classes"], ["/evaluations", "Évaluations", "bar-chart", "Évaluations"],
+  ["/fiches", "Mes fiches", "file", "Fiches"], ["/eleves", "Mes élèves", "user", "Élèves"],
+  ["/parametres", "Paramètres", "settings", "Paramètres"], ["/profil", "Mon profil", "profil", "Profil"]];
+
+// Mobile : les 4 destinations du quotidien restent dans la barre du bas, avec leur NOM affiché sous l'icône
+// (des icônes seules sont illisibles). Tout le reste — dont les Paramètres — passe dans le menu du haut, à droite.
+// Pour changer les onglets du bas, il suffit de modifier cette liste de chemins : le menu du haut suit tout seul.
+const CHEMINS_BAS = ["/", "/preparation", "/classes", "/fiches"];
+const ONGLETS_BAS = NAV.filter(([to]) => CHEMINS_BAS.includes(to));
+const MENU_HAUT = NAV.filter(([to]) => !CHEMINS_BAS.includes(to));
 
 async function prefetch() { // précharge de quoi travailler hors connexion (chemins identiques à ceux des écrans)
   try {
@@ -29,7 +40,7 @@ async function prefetch() { // précharge de quoi travailler hors connexion (che
 
 export default function App() {
   const [auth, setAuth] = useState(!!localStorage.getItem("token")), [expired, setExpired] = useState(false);
-  const [me] = useGet(auth ? "/me/" : null), estAdmin = !!me?.est_admin; // menu « Demandes » réservé aux administrateurs
+  const [me, reloadMe] = useGet(auth ? "/me/" : null), estAdmin = !!me?.est_admin; // menu « Demandes » réservé aux administrateurs
   const [online, setOnline] = useState(navigator.onLine), [sync, setSync] = useState(false), [done, setDone] = useState(false), [toast, setToast] = useState(null);
   const [q, setQ] = useState({ p: pending(), f: failed().length });
   const say = (m) => { setToast(m); setTimeout(() => setToast(null), 3500); };
@@ -44,9 +55,10 @@ export default function App() {
     const on = () => { setOnline(true); run(); }, off = () => { setOnline(false); say("⚠️ Connexion interrompue. Vous pouvez continuer hors connexion."); };
     const exp = () => { setAuth(false); setExpired(true); };
     addEventListener("online", on); addEventListener("offline", off); addEventListener("queue-changed", upd); addEventListener("session-expired", exp);
+    addEventListener("profil-modifie", reloadMe); // photo ou coordonnées changées : la barre du haut se met à jour
     if (auth) { run(); prefetch(); }
     const t = setInterval(run, 30000);
-    return () => { removeEventListener("online", on); removeEventListener("offline", off); removeEventListener("queue-changed", upd); removeEventListener("session-expired", exp); clearInterval(t); };
+    return () => { removeEventListener("online", on); removeEventListener("offline", off); removeEventListener("queue-changed", upd); removeEventListener("session-expired", exp); removeEventListener("profil-modifie", reloadMe); clearInterval(t); };
   }, [auth]);
   const logout = () => {
     if (pending() && !window.confirm("Des modifications ne sont pas encore synchronisées. Elles seront conservées sur cet appareil et envoyées à votre prochaine connexion. Se déconnecter ?")) return;
@@ -56,6 +68,14 @@ export default function App() {
   return (
     <Say.Provider value={say}>
       <div className="shell">
+        {/* Mobile : menu du haut — les entrées se partagent toute la largeur, exactement comme la barre du bas
+            (nom sous l'icône), et le profil ferme la barre, à droite. Sur ordinateur, cette barre est masquée :
+            ces liens restent dans la barre latérale, qui ne bouge pas. */}
+        <nav className="barre-haut" aria-label="Menu du haut">
+          {MENU_HAUT.map(([to, , icon, court]) => <NavLink key={to} to={to} end={to === "/"}>
+            {icon === "profil" && me?.photo ? <img className="avatar-mini" src={mediaUrl(me.photo)} alt="" /> : ICONS[icon]}<span>{court}</span></NavLink>)}
+          {estAdmin && <NavLink to="/demandes">{ICONS.requests}<span>Demandes</span></NavLink>}
+        </nav>
         <nav className="side" aria-label="Navigation principale">
           <div className="brand">Assistant Enseignant</div>
           {NAV.map(([to, label, icon]) => <NavLink key={to} to={to} end={to === "/"}>{ICONS[icon]} <span>{label}</span></NavLink>)}
@@ -86,11 +106,16 @@ export default function App() {
             <Route path="/evaluations/:id/resultats" element={<P.Resultats />} />
             <Route path="/eleves" element={<P.Eleves />} />
             <Route path="/eleves/:id" element={<P.Eleve />} />
+            <Route path="/profil" element={<P.Profil />} />
             <Route path="/parametres" element={<P.Parametres onLogout={logout} />} />
             <Route path="/demandes" element={me === null ? <Wait /> : estAdmin ? <P.GestionDemandes /> : <P.AccesReserve />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes></ErrorBoundary>
         </main>
+        {/* Mobile : barre du bas — les 4 onglets principaux, nom affiché sous l'icône. */}
+        <nav className="onglets-bas" aria-label="Navigation rapide">
+          {ONGLETS_BAS.map(([to, , icon, court]) => <NavLink key={to} to={to} end={to === "/"}>{ICONS[icon]}<span>{court}</span></NavLink>)}
+        </nav>
         {toast && <div className="toast" role="alert">{toast}</div>}
       </div>
     </Say.Provider>

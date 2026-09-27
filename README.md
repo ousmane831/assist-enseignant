@@ -1,7 +1,9 @@
 # Assistant Enseignant — MVP pour test terrain
 
 Outil d'aide à l'enseignant du primaire (préparation des fiches, évaluations, résultats, bulletins).
-**L'outil aide l'enseignant, il ne remplace pas son jugement** : toute appréciation automatique n'est qu'une *proposition*.
+**L'automatisation remplace la saisie, pas le jugement** : les appréciations sont **déduites automatiquement des moyennes**
+(barème des Paramètres) — l'enseignant n'a rien à saisir ; s'il personnalise un élève, son texte validé prévaut toujours,
+et l'interface indique à tout moment ce qui est automatique et ce qui est personnalisé.
 
 ## 0. Démarrage rapide (depuis la **racine** du projet)
 ```powershell
@@ -73,6 +75,9 @@ Chaque évaluation a un statut persistant : **brouillon → vérifiée → valid
 - Modifier des notes/appréciations d'une période *vérifiée* la ramène à *brouillon*.
 - Une période *validée* est verrouillée (notes, appréciations, évaluations : erreur 409). Le bouton **« Rouvrir pour modifier »** (confirmation demandée) la remet en brouillon.
 - Le bulletin/livret n'est généré que pour une période **validée**, à partir des données enregistrées (`GET /api/classes/<id>/bulletins/?periode=…`).
+- **Appréciations automatiques : rien à saisir.** `GET /api/classes/<id>/appreciations/?periode=…` renvoie déjà, pour chaque élève,
+  le texte retenu et sa source (`auto` = barème appliqué à la moyenne, `enseignant` = texte validé). Un texte enregistré mais
+  **non validé** (brouillon) n'est jamais utilisé : ni à la vérification, ni sur le bulletin, où l'appréciation automatique le remplace.
 
 ## 8. Fonctionnement hors connexion
 - Bandeau : 🟢 En ligne · 🟠 Hors connexion · 🔄 Synchronisation · 🟢 Synchronisation terminée · ⚠️ Synchronisation impossible.
@@ -84,16 +89,17 @@ Chaque évaluation a un statut persistant : **brouillon → vérifiée → valid
 
 ## 9. Limites actuelles
 - Créations (nouvelle classe, fiche, exercice, évaluation, élève), connexion, vérification/validation/réouverture : **connexion requise** (évite les doublons).
-- Résultats, appréciations proposées et bulletins nécessitent le serveur (calculs côté serveur) ; ils ne sont pas consultables hors connexion s'ils n'ont pas été chargés.
+- Résultats, appréciations automatiques et bulletins nécessitent le serveur (calculs côté serveur) ; ils ne sont pas consultables hors connexion s'ils n'ont pas été chargés.
 - PWA minimale : pas d'icônes ni d'installation « application » soignée. Le Service Worker n'est pas testé automatiquement.
 - Pas de tests de composants React (vitest/testing-library non installables sans réseau dans l'environnement de développement de cet audit).
 - « Télécharger PDF » = impression du navigateur (`exporterPdf` dans `BulletinDocument.jsx` : point d'extension pour un vrai générateur).
 - Base **PostgreSQL** locale (variables `POSTGRES_*` de `backend/.env`) : suffisante pour un test restreint ; prévoir sauvegardes et un vrai serveur (HTTPS) pour aller plus loin. Le fichier `backend/db.sqlite3` n'est pas utilisé.
 - Pas d'inscription en ligne : les comptes sont créés par l'administrateur.
+- **Photo de profil** : l'envoi exige une connexion (un fichier ne se met pas en file d'attente comme un JSON) et la photo n'est pas relue hors connexion. Les fichiers ne sont servis par Django qu'en développement (`DEBUG=1`) : en production, c'est le serveur web qui sert `/media/` en HTTPS.
 
 ## 10. Données pédagogiques PROVISOIRES — à valider
 Rien n'est officiel : matières, types d'évaluation, périodes, rubriques du canevas de fiche, seuils et libellés d'appréciation, modèle de bulletin sont des **valeurs de développement modifiables dans Paramètres**. Le catalogue de leçons est vide (l'enseignant ajoute ses leçons ; import futur d'un programme validé possible via le modèle `Lecon`).
-Règles de calcul provisoires (`core/calculs.py`) : note ramenée sur une base configurable (20) ; moyenne de matière pondérée par coefficient d'évaluation ; moyenne générale = moyenne simple des matières ; arrondi à 2 décimales ; ex æquo = même rang.
+Règles de calcul provisoires (`core/calculs.py`) : note ramenée sur une base configurable (20) ; moyenne de matière pondérée par coefficient d'évaluation ; moyenne générale = moyenne simple des matières ; arrondi à 2 décimales ; ex æquo = même rang ; appréciation automatique = texte du seuil le plus élevé atteint par la moyenne (`appreciation_auto`).
 
 ## 11. Prochaines étapes
 Valider les règles de calcul et le modèle de bulletin avec des enseignants ; importer un programme validé ; générateur PDF ; tests de composants React et tests bout en bout (Playwright) ; PostgreSQL et déploiement HTTPS ; icônes PWA.
@@ -158,6 +164,44 @@ Sécurité — assurée **côté serveur**, jamais seulement en masquant l'inter
 
 Créer un administrateur : `python manage.py createsuperuser`, ou cocher « Statut équipe » pour un compte existant dans `/admin/`.
 Les administrateurs peuvent aussi continuer à traiter les demandes dans `/admin/` (mêmes données, mêmes actions).
+
+## 15. Profil de l'enseignant (coordonnées, informations professionnelles, photo)
+Écran **Mon profil** (`/profil`) — entrée « Profil » du menu du haut sur téléphone, « Mon profil » dans la barre
+latérale sur ordinateur. Tout est **facultatif** : un compte neuf reste utilisable tout de suite, le profil se
+complète ensuite. Champs : civilité, nom, prénoms, téléphone, e-mail, matricule, corps, école, région, IA, IEF, photo.
+
+| Route | Rôle |
+|---|---|
+| `GET /api/profil/` | profil de l'enseignant connecté (créé à la première écriture s'il n'existe pas) |
+| `PUT/PATCH /api/profil/` | enregistrement ; **le serveur impose le propriétaire** — personne ne lit ni ne modifie le profil d'un autre |
+| `POST /api/profil/photo/` | photo en **multipart** (JPEG, PNG ou WebP, 2 Mo maximum) ; la photo remplacée est effacée du disque |
+| `DELETE /api/profil/photo/` | retire la photo |
+
+- `nom` / `prenom` mettent à jour **le compte lui-même** : c'est ce nom qu'affiche l'application (`GET /api/me/`).
+  Un champ laissé vide n'efface pas la valeur existante, et laisser le nom vide ne supprime pas le nom du compte.
+- Téléphone **normalisé** en `+221XXXXXXXXX` (mêmes règles que la demande de compte) ; corps choisi dans une liste
+  **provisoire** (`CORPS`, à valider avec les enseignants) ; région parmi les 14 régions.
+- La photo apparaît comme **avatar dans le menu du haut** (une fois envoyée) et sur l'écran du profil ; sans photo,
+  ce sont les initiales du nom qui s'affichent. Fichiers dans `MEDIA_ROOT/profils/` (`backend/media/`, **non versionné** :
+  ce sont des données personnelles), servis par Django **en développement seulement** (`DEBUG=1`) : en production,
+  c'est le serveur web qui sert `/media/`.
+- Les autres enseignants n'y ont **aucun accès** (401 sans connexion, et chacun ne voit que la sienne).
+
+## 16. Navigation sur téléphone (deux barres)
+Sous 800 px de large, la barre latérale est remplacée par deux barres :
+
+| Barre | Contenu |
+|---|---|
+| En haut | **Évaluations · Élèves · Paramètres · Profil** (et « Demandes » pour un administrateur) — le profil ferme la barre, à droite |
+| En bas | **4 onglets avec leur nom sous l'icône** : Accueil · Préparer · Classes · Fiches |
+
+- Les onglets du bas se changent dans `CHEMINS_BAS` (`frontend/src/App.jsx`) : le menu du haut se recalcule tout seul
+  (aucune destination ne peut être perdue, c'est vérifié par `src/nav.test.js`).
+- En bas, l'onglet actif est mis en évidence ; la barre tient compte de l'encoche des téléphones (`safe-area-inset-bottom`)
+  et le contenu est décalé pour ne rien masquer.
+- **Rien ne change sur ordinateur** (barre latérale complète), et les deux barres sont **masquées à l'impression**
+  (bulletins, fiches, livrets).
+
 
 
 

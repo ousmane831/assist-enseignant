@@ -5,7 +5,9 @@ RÈGLES PROVISOIRES DE DÉVELOPPEMENT — NON OFFICIELLES :
 - moyenne d'une matière = moyenne pondérée par les coefficients des évaluations ;
 - moyenne générale = moyenne simple des moyennes de matières (sans coefficient de matière) ;
 - arrondi à 2 décimales (demi vers le haut) ;
-- classement : ex aequo = même rang (1, 1, 3).
+- classement : ex aequo = même rang (1, 1, 3) ;
+- appréciation : texte du seuil le plus élevé atteint par la moyenne (barème des Paramètres) —
+  c'est le remplissage automatique : aucune saisie n'est demandée à l'enseignant.
 À remplacer/valider selon les pratiques pédagogiques et administratives réellement utilisées.
 """
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -69,3 +71,26 @@ def repartition(valeurs, note_max):
     for v in valeurs:
         out[min(int(float(v) / float(note_max) * 4), 3)] += 1
     return out
+
+
+def appreciation_auto(moyenne, base=20, seuils=()):
+    """Appréciation déduite de la moyenne : remplissage automatique, sans saisie de l'enseignant.
+
+    `seuils` : liste de {"min", "texte"} — `min` étant une fraction de `base` (0.5 = la moitié de la base).
+    Retourne le texte du seuil le plus élevé atteint, "" si aucun seuil ne correspond,
+    None si la moyenne est inconnue (aucune note) : un élève sans résultat ne reçoit pas d'appréciation inventée.
+    """
+    if moyenne is None:
+        return None
+    seuils = sorted((a for a in (seuils or ()) if a.get("texte")), key=lambda a: float(a.get("min") or 0))
+    b = float(_d(base))
+    if not seuils or b <= 0:
+        return ""
+    part = float(_d(moyenne)) / b
+    texte = ""
+    for a in seuils:  # seuils croissants : le dernier atteint est le plus précis
+        if part >= float(a.get("min") or 0):
+            texte = str(a["texte"])
+        else:
+            break
+    return texte

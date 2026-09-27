@@ -88,6 +88,7 @@ STATUTS_DEMANDE = [("nouvelle", "Nouvelle"), ("traitee", "Traitée"), ("rejetee"
 class DemandeCompte(models.Model):
     """Demande d'ouverture de compte. Aucun compte n'est créé automatiquement : l'administrateur
     vérifie l'identité déclarée, puis crée le compte (voir /admin/). Aucune donnée d'élève n'y figure."""
+    # (voir le modèle Profil en fin de fichier : coordonnées renseignées après la création du compte)
     nom_complet = models.CharField(max_length=120)
     telephone = models.CharField(max_length=16)  # normalisé par l'API en +221XXXXXXXXX
     email = models.EmailField(blank=True)        # facultatif : beaucoup d'enseignants n'ont pas d'e-mail
@@ -105,3 +106,29 @@ class DemandeCompte(models.Model):
     compte_cree = models.CharField(max_length=150, blank=True)  # identifiant créé (jamais le mot de passe)
     class Meta: ordering = ["-created_at"]
     def __str__(self): return f"{self.nom_complet} ({self.telephone})"
+
+
+# ---------- Profil de l'enseignant : coordonnées et informations professionnelles (renseignées par lui-même) ----------
+CIVILITES = [("mme", "Madame"), ("m", "Monsieur")]
+# Valeurs PROVISOIRES à valider avec les enseignants (aucun corps officiel n'est imposé par l'application).
+CORPS = [("instituteur", "Instituteur"), ("instituteur_adjoint", "Instituteur adjoint"),
+         ("maitre", "Maître contractuel"), ("professeur_ecole", "Professeur d'école"), ("autre", "Autre")]
+
+class Profil(models.Model):
+    """Coordonnées de l'enseignant, complétées par lui-même APRÈS la création de son compte : tous les champs
+    sont facultatifs, un compte neuf reste utilisable tout de suite (aucune donnée d'élève n'y figure).
+    `photo` est un simple fichier (FileField) et non une ImageField : aucune bibliothèque externe n'est requise ;
+    format et poids sont contrôlés par l'API (ProfilS / PhotoS)."""
+    user = models.OneToOneField(U, related_name="profil", on_delete=models.CASCADE)
+    civilite = models.CharField(max_length=3, choices=CIVILITES, blank=True)
+    telephone = models.CharField(max_length=16, blank=True)   # normalisé par l'API en +221XXXXXXXXX
+    email = models.EmailField(blank=True)
+    matricule = models.CharField(max_length=40, blank=True)   # numéro d'identification (facultatif)
+    corps = models.CharField(max_length=20, choices=CORPS, blank=True)
+    ecole = models.CharField(max_length=120, blank=True)
+    region = models.CharField(max_length=40, choices=[(r, r) for r in REGIONS], blank=True)
+    ia = models.CharField(max_length=120, blank=True)
+    ief = models.CharField(max_length=120, blank=True)
+    photo = models.FileField(upload_to="profils/", blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    def __str__(self): return f"Profil de {self.user.get_username()}"

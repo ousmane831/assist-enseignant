@@ -1,6 +1,7 @@
 import re
 import unicodedata
 from collections import defaultdict
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
@@ -29,7 +30,7 @@ DEFAULTS = {
     "canevas": ["Objectifs", "Compétences", "Prérequis", "Matériel", "Situation de départ",
                 "Déroulement", "Activités", "Évaluation"],
     "classement": True, "base_moyenne": 20, "note_max_defaut": 20,
-    "appreciations": [  # seuils en fraction de la base : suggestions à valider
+    "appreciations": [  # barème appliqué AUTOMATIQUEMENT aux moyennes (remplissage sans saisie de l'enseignant)
         {"min": 0, "texte": "Besoin d'accompagnement"}, {"min": 0.4, "texte": "Résultats à surveiller"},
         {"min": 0.5, "texte": "Résultats satisfaisants"}, {"min": 0.7, "texte": "Bons résultats"}],
     "modele_bulletin": "Modèle provisoire de l'application : à remplacer par le modèle validé",
@@ -141,18 +142,63 @@ def calc_classe(classe, periode, c):
     return out
 
 
+# ---------- Appréciations : déduites automatiquement des moyennes (aucune saisie de l'enseignant) ----------
+def appreciations_auto(classe, periode, c):
+    """{eleve_id: texte} : appréciation déduite de la moyenne de la période par le barème des Paramètres.
+    Un élève sans note n'a pas d'appréciation (None) : rien ne lui est inventé."""
+    return {r["eleve"]: C.appreciation_auto(r["moyenne"], c["base_moyenne"], c["appreciations"])
+            for r in calc_classe(classe, periode, c)}
+
+
+def appreciations_effectives(classe, periode, c):
+    """Appréciation RETENUE pour chaque élève, sans que l'enseignant ait à la saisir.
+
+    - l'application remplit l'appréciation à partir de la moyenne (barème des Paramètres) ;
+    - un texte écrit ET validé par l'enseignant prévaut sur la règle : son jugement reste premier ;
+    - un texte écrit mais non validé reste un brouillon : il n'est jamais retenu (bulletin compris),
+      l'appréciation automatique est utilisée à sa place.
+
+    Retourne {eleve_id: {"texte", "auto", "source", "brouillon", "validee"}} :
+      texte     : texte retenu (affiché dans l'application et imprimé sur le bulletin)
+      auto      : texte produit par la règle automatique ("" si aucune note)
+      source    : "enseignant" (texte validé par l'enseignant) ou "auto" (règle de l'application)
+      brouillon : texte enregistré mais non validé ("" s'il n'y en a pas)
+      validee   : True si le texte retenu a été validé par l'enseignant
+    """
+    autos = appreciations_auto(classe, periode, c)
+    enr = {a.eleve_id: a for a in m.Appreciation.objects.filter(eleve__classe=classe, periode=periode)}
+    out = {}
+    for eid, auto in autos.items():
+        a = enr.get(eid)
+        ecrit = a.texte.strip() if a else ""
+        if ecrit and a.validee:
+            out[eid] = {"texte": ecrit, "auto": auto or "", "source": "enseignant", "brouillon": "", "validee": True}
+        else:
+            out[eid] = {"texte": auto or "", "auto": auto or "", "source": "auto", "brouillon": ecrit, "validee": False}
+    return out
+
+
 def verif(cl, per, c):
     evs = cl.evaluations.filter(periode=per)
     n_el, att = cl.eleves.count(), cl.eleves.count() * evs.count()
     saisies = m.Note.objects.filter(evaluation__in=evs).exclude(valeur=None).count()
     res = calc_classe(cl, per, c)
-    apps = m.Appreciation.objects.filter(eleve__classe=cl, periode=per, validee=True).exclude(texte="").count()
+    appr = appreciations_effectives(cl, per, c)
+    auto = sum(1 for x in appr.values() if x["source"] == "auto" and x["texte"])
+    perso = sum(1 for x in appr.values() if x["source"] == "enseignant")
+    brouillons = sum(1 for x in appr.values() if x["brouillon"])
     pb = []
     if not evs.exists(): pb.append("Aucune évaluation pour cette période")
     if saisies < att: pb.append("Note manquante")
     if any(r["moyenne"] is None for r in res): pb.append("Élève sans résultat")
-    if apps < n_el: pb.append("Information incomplète : appréciations à valider")
-    return {"eleves": n_el, "notes_saisies": saisies, "notes_attendues": att, "appreciations": apps, "problemes": pb,
+    # Les appréciations ne bloquent plus la validation : elles sont déduites des moyennes, rien n'est à saisir.
+    infos = []
+    if auto: infos.append(f"{auto} appréciation(s) déduite(s) automatiquement des moyennes")
+    if perso: infos.append(f"{perso} appréciation(s) personnalisée(s) et validée(s) par vous")
+    if brouillons: infos.append(f"{brouillons} texte(s) personnalisé(s) non validé(s) : l'appréciation automatique est utilisée")
+    return {"eleves": n_el, "notes_saisies": saisies, "notes_attendues": att,
+            "appreciations": auto + perso, "appreciations_auto": auto, "appreciations_personnalisees": perso,
+            "appreciations_brouillon": brouillons, "informations": infos, "problemes": pb,
             "moyenne_generale": C.moyenne_generale(r["moyenne"] for r in res), "erreurs": 0,
             "statut": statut_periode(cl, per), "nb_evaluations": evs.count()}
 
@@ -172,6 +218,8 @@ class ClasseV(Owned):
 
     @action(detail=True, methods=["get", "put"])
     def appreciations(self, req, pk=None):
+        """GET : appréciations déjà remplies (barème appliqué aux moyennes) — l'enseignant n'a rien à saisir.
+        PUT : enregistre les textes qu'il décide de figer ; un texte validé prévaut alors sur la règle."""
         cl, per = self.get_object(), self._per(req)
         if req.method == "PUT":
             verrouille(cl, per)
@@ -184,15 +232,7 @@ class ClasseV(Owned):
                     m.Appreciation.objects.update_or_create(eleve_id=r["eleve"], periode=per,
                         defaults={"texte": texte, "validee": bool(r.get("validee")) and bool(texte)})  # jamais validée sans texte
                 invalider_verification(cl, per)
-        return Response({a.eleve_id: {"texte": a.texte, "validee": a.validee} for a in m.Appreciation.objects.filter(eleve__classe=cl, periode=per)})
-
-    @action(detail=True)
-    def proposer(self, req, pk=None):  # PROPOSITIONS uniquement : validee=False, rien n'est enregistré
-        c, out = cfg(req.user), {}
-        for r in calc_classe(self.get_object(), self._per(req), c):
-            if r["moyenne"] is not None:
-                out[r["eleve"]] = {"texte": [a["texte"] for a in c["appreciations"] if r["moyenne"] / c["base_moyenne"] >= a["min"]][-1], "validee": False}
-        return Response(out)
+        return Response(appreciations_effectives(cl, per, cfg(req.user)))
 
     @action(detail=True)
     def verification(self, req, pk=None):
@@ -227,16 +267,18 @@ class ClasseV(Owned):
     @action(detail=True)
     def bulletins(self, req, pk=None):
         """Données du bulletin/livret : uniquement à partir des résultats VALIDÉS et enregistrés.
+        L'appréciation est celle retenue par le serveur (règle automatique, ou texte validé par l'enseignant).
         Un futur générateur PDF pourra consommer ce JSON sans réécrire le module."""
         cl, per, c = self.get_object(), self._per(req, True), cfg(req.user)
         if statut_periode(cl, per) != "valide":
             raise Conflit("Validez les résultats de cette période avant de générer les documents.")
-        apps = {a.eleve_id: a.texte for a in m.Appreciation.objects.filter(eleve__classe=cl, periode=per, validee=True)}
+        appr = appreciations_effectives(cl, per, c)
         det = defaultdict(lambda: defaultdict(list))
         for n in m.Note.objects.filter(evaluation__classe=cl, evaluation__periode=per).exclude(valeur=None).select_related("evaluation").order_by("evaluation__date", "evaluation_id"):
             e = n.evaluation
             det[n.eleve_id][e.matiere].append({"titre": e.titre, "type": e.type, "note": float(n.valeur), "note_max": float(e.note_max), "coefficient": float(e.coefficient)})
-        eleves = [{**r, "evaluations": det[r["eleve"]], "appreciation": apps.get(r["eleve"], "")} for r in calc_classe(cl, per, c)]
+        eleves = [{**r, "evaluations": det[r["eleve"]], "appreciation": appr.get(r["eleve"], {}).get("texte", ""),
+                   "appreciation_auto": appr.get(r["eleve"], {}).get("source") == "auto"} for r in calc_classe(cl, per, c)]
         return Response({"classe": {"id": cl.id, "niveau": cl.niveau, "nom": cl.nom, "annee_scolaire": cl.annee_scolaire},
                          "periode": per, "modele": c["modele_bulletin"], "classement": c["classement"], "base": c["base_moyenne"], "eleves": eleves})
 
@@ -425,8 +467,12 @@ router.register("admin/demandes-compte", DemandesCompteAdminV, basename="demande
 def me(req):
     # est_admin : sert à n'afficher le menu d'administration qu'aux personnes concernées.
     # La vraie protection reste le contrôle d'accès des vues, côté serveur.
+    # La photo est relue en base (et non par le lien `user.profil`, qui peut rester en cache sur l'instance) :
+    # une photo ajoutée ou retirée est donc reflétée immédiatement.
+    photo = m.Profil.objects.filter(user=req.user).values_list("photo", flat=True).first() or ""
     return Response({"nom": req.user.get_full_name() or req.user.username,
-                     "est_admin": bool(req.user.is_staff or req.user.is_superuser)})
+                     "est_admin": bool(req.user.is_staff or req.user.is_superuser),
+                     "photo": f"{settings.MEDIA_URL}{photo}" if photo else ""})
 
 
 @api_view(["GET", "PUT"])
@@ -436,3 +482,41 @@ def parametres(req):
         p.config = {**p.config, **nettoyer_config(req.data)}
         p.save()
     return Response(cfg(req.user))
+
+
+CHAMPS_PROFIL = ("civilite", "telephone", "email", "matricule", "corps", "ecole", "region", "ia", "ief")
+
+
+@api_view(["GET", "PUT", "PATCH"])
+def profil(req):
+    """Profil de l'enseignant : coordonnées et informations professionnelles, créées à la première écriture.
+    Le serveur impose le propriétaire — un enseignant ne lit ni ne modifie le profil d'un autre.
+    `nom`/`prenom` mettent à jour le compte lui-même (c'est ce nom qu'affiche /api/me/) : un champ laissé
+    vide ne remplace pas la valeur existante."""
+    p, _ = m.Profil.objects.get_or_create(user=req.user)
+    if req.method != "GET":
+        ser = s.ProfilS(p, data={k: v for k, v in req.data.items() if k in CHAMPS_PROFIL}, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        if "nom" in req.data or "prenom" in req.data:
+            nom, prenom = str(req.data.get("nom") or "").strip()[:150], str(req.data.get("prenom") or "").strip()[:150]
+            req.user.last_name, req.user.first_name = nom or req.user.last_name, prenom or req.user.first_name
+            req.user.save(update_fields=["last_name", "first_name"])
+    return Response(s.ProfilS(p).data)
+
+
+@api_view(["POST", "DELETE"])
+def profil_photo(req):
+    """Photo de profil (envoi multipart : JPEG, PNG ou WebP, 2 Mo maximum) ou retrait de la photo.
+    La photo remplacée est effacée du disque : aucun fichier orphelin ne s'accumule."""
+    p, _ = m.Profil.objects.get_or_create(user=req.user)
+    if req.method == "DELETE":
+        p.photo.delete(save=True)
+        return Response(s.ProfilS(p).data)
+    ser = s.PhotoS(p, data=req.data, partial=True)
+    ser.is_valid(raise_exception=True)
+    ancienne = p.photo.name
+    ser.save()
+    if ancienne and ancienne != p.photo.name:
+        p.photo.storage.delete(ancienne)
+    return Response(s.ProfilS(p).data)

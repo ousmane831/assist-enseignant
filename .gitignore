@@ -14,3 +14,5 @@ frontend/.env.local
 .DS_Store
 *.log
 *.zip
+# Médias (photos de profil) : données personnelles des enseignants, jamais versionnées
+backend/media/

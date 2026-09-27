@@ -38,6 +38,50 @@ class DemandeCompteS(serializers.ModelSerializer):
         return d
 
 
+CHAMPS_PROFIL = ("civilite", "telephone", "email", "matricule", "corps", "ecole", "region", "ia", "ief")
+
+
+class ProfilS(serializers.ModelSerializer):
+    """Profil de l'enseignant : le propriétaire est imposé par le serveur (jamais par le client).
+    `nom` et `prenom` sont en LECTURE SEULE ici : ils modifient le compte lui-même (voir la vue), qui est
+    la seule source du nom affiché dans l'application. `photo` se modifie uniquement via /api/profil/photo/."""
+    nom = serializers.CharField(source="user.last_name", read_only=True)
+    prenom = serializers.CharField(source="user.first_name", read_only=True)
+
+    class Meta: model = m.Profil; fields = "__all__"; read_only_fields = ["user", "updated_at", "photo"]
+
+    def validate_telephone(self, v):
+        n = re.sub(r"[\s.\-()/]", "", str(v or ""))
+        if not n:
+            return ""  # champ facultatif : un numéro vidé reste vide (n'efface pas les autres données)
+        if not TELEPHONE_SN.match(n):
+            raise serializers.ValidationError("Numéro invalide : indiquez un numéro sénégalais à 9 chiffres (ex. 77 123 45 67).")
+        return "+221" + n[-9:]
+
+    def validate(self, d):
+        for k in ("ia", "ief", "ecole", "matricule"):
+            if k in d:
+                d[k] = str(d[k]).strip()[:120]
+        if "email" in d:
+            d["email"] = str(d["email"]).strip()
+        return d
+
+
+PHOTO_TYPES = ("image/jpeg", "image/png", "image/webp")  # formats d'image courants (aucune bibliothèque externe)
+
+class PhotoS(serializers.ModelSerializer):
+    """Photo de profil : le fichier vient du client, donc il est vérifié ici (poids et format)."""
+    photo = serializers.FileField()
+    class Meta: model = m.Profil; fields = ["photo"]
+
+    def validate_photo(self, f):
+        if f.size > 2 * 1024 * 1024:
+            raise serializers.ValidationError("Photo trop lourde : 2 Mo maximum.")
+        if (getattr(f, "content_type", "") or "").lower() not in PHOTO_TYPES:
+            raise serializers.ValidationError("Format non accepté : utilisez une image JPEG, PNG ou WebP.")
+        return f
+
+
 class DemandeCompteAdminS(serializers.ModelSerializer):
     """Vue administrateur : les informations déclarées ne sont PAS modifiables (preuve de la demande) ;
     seuls la suite donnée (statut, note) peuvent être renseignées, et le suivi de traitement est imposé par le serveur."""
