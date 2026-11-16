@@ -10,7 +10,7 @@ Principes :
   (commande `manage.py verifier_referentiel`).
 
 Structure d'un fichier : guide → activites → paliers → oa → seances (une séance = un objectif spécifique (OS)
-avec ses contenus = une fiche). Les contenus absents d'une séance sont hérités de l'OA, puis du palier
+avec ses contenus = une fiche ; `duree` facultative à chaque niveau : palier, OA, séance). Les contenus absents d'une séance sont hérités de l'OA, puis du palier
 (cellules fusionnées dans les tableaux du guide).
 """
 import json
@@ -106,7 +106,8 @@ def fiche_depuis_seance(ctx):
     contenus = contenus_effectifs(p, oa, s)
     memes = [x for x in oa["seances"] if x["os"] == s["os"]]
     titre = s["os"] + (f" (séance {memes.index(s) + 1}/{len(memes)})" if len(memes) > 1 else "")
-    oa_titre = f"{oa['numero']}. {oa['intitule']}" if oa.get("numero") else oa["intitule"]
+    # OA désigné seulement par un numéro dans certains tableaux du guide : intitulé vide, affiché « OA n ».
+    oa_titre = " — ".join(x for x in (f"OA {oa['numero']}" if oa.get("numero") else "", oa.get("intitule", "")) if x)
     contenus_ligne = re.sub(r"\s*\n\s*", " ; ", contenus).strip()
     deroulement = "\n".join([
         "Canevas proposé par l'application (ne figure pas dans le guide) : à adapter à votre classe.",
@@ -123,7 +124,8 @@ def fiche_depuis_seance(ctx):
         evaluation += f"\n\nSituation d'intégration du palier (guide) :\n{_situation(p['integration'])}"
     sections = [
         {"titre": "Repères", "contenu": f"{a['domaine']} — {a['activite']}\nNiveau : {p['niveau']} · Palier {p['numero']}\nDurée du palier : {p.get('duree') or '—'}"
-                                        + (f"\nDurée (OA) : {oa['duree']}" if oa.get("duree") else "")},
+                                        + (f"\nDurée (OA) : {oa['duree']}" if oa.get("duree") else "")
+                                        + (f"\nDurée de la séance : {s['duree']}" if s.get("duree") else "")},
         {"titre": "Compétence de base", "contenu": a.get("competence_base", "")},
         {"titre": f"Palier {p['numero']}", "contenu": p["intitule"]},
         {"titre": "Objectif d'apprentissage (OA)", "contenu": oa_titre},
@@ -166,8 +168,8 @@ def valider_structure(donnees):
             if not p.get("intitule") or not p.get("oa"):
                 err.append(f"{lieu}: intitulé ou OA manquant")
             for oa in p.get("oa", []):
-                if not oa.get("intitule") or not oa.get("seances"):
-                    err.append(f"{lieu}: OA sans intitulé ou sans séance")
+                if not (oa.get("intitule") or oa.get("numero")) or not oa.get("seances"):
+                    err.append(f"{lieu}: OA sans intitulé ni numéro, ou sans séance")
                 for s in oa.get("seances", []):
                     if not s.get("id") or not s.get("os"):
                         err.append(f"{lieu}: séance sans id ou sans OS")
@@ -215,9 +217,10 @@ def verifier_fidelite(donnees, texte_pages, marge=1):
             for oa in p["oa"]:
                 for champ in ("intitule", "duree", "contenus"):
                     if oa.get(champ):
-                        controler(lieu, f"OA {oa['intitule'][:30]} · {champ}", oa[champ], pg)
+                        controler(lieu, f"OA {oa.get('numero')} {oa.get('intitule', '')[:30]} · {champ}", oa[champ], pg)
                 for s in oa["seances"]:
                     controler(lieu, f"{s['id']} · os", s["os"], pg)
-                    if s.get("contenus"):
-                        controler(lieu, f"{s['id']} · contenus", s["contenus"], pg)
+                    for champ in ("contenus", "duree"):
+                        if s.get(champ):
+                            controler(lieu, f"{s['id']} · {champ}", s[champ], pg)
     return ecarts

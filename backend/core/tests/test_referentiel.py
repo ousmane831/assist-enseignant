@@ -29,14 +29,18 @@ class Donnees(SimpleTestCase):
 
     def test_controle_de_fidelite_detecte_une_invention(self):
         import copy
+        def textes(x):  # toutes les chaînes d'une structure, quelle qu'en soit la profondeur
+            if isinstance(x, str): return [x]
+            if isinstance(x, dict): return [t for v in x.values() for t in textes(v)]
+            if isinstance(x, list): return [t for v in x for t in textes(v)]
+            return []
+
         g = copy.deepcopy(R.guides()[0])
-        pages = {n: "" for n in range(1, 300)}
+        pages = {n: "" for n in range(1, 400)}
         for a in g["activites"]:  # « PDF » fabriqué à partir de la transcription elle-même…
+            pages[a["pages"][0]] += " ".join(textes({k: v for k, v in a.items() if k != "paliers"}))
             for p in a["paliers"]:
-                for _, _, _, oa, s in R.parcourir([{"activites": [{**a, "paliers": [p]}]}]):
-                    pages[p["pages"][0]] += " ".join([a["competence_base"], *a["criteres"], p["intitule"], p.get("duree", ""), p.get("remarque", ""),
-                                                      p.get("contenus", ""), oa["intitule"], oa.get("duree", ""), oa.get("contenus", ""),
-                                                      s["os"], s["contenus"], *(p.get("integration") or {}).values(), *(p.get("evaluation") or {}).values()])
+                pages[p["pages"][0]] += " " + " ".join(textes(p))
         self.assertEqual(R.verifier_fidelite(g, pages), [])
         g["activites"][0]["paliers"][0]["oa"][0]["seances"][0]["contenus"] += " phrase inventée"  # …puis une invention
         (ecart,) = R.verifier_fidelite(g, pages)

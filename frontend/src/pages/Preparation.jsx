@@ -16,7 +16,7 @@ export function Preparation() {
   const cherche = q.trim().toLowerCase(), correspond = (...t) => !cherche || t.join(" ").toLowerCase().includes(cherche);
   // Séances du guide pour la matière choisie, filtrées par la recherche (OS, contenus, OA, activité).
   const guide = activites.filter((a) => a.matiere === mat).map((a) => ({ ...a, paliers: a.paliers.map((p) => ({ ...p,
-    oa: p.oa.map((oa) => ({ ...oa, seances: oa.seances.filter((s) => correspond(s.os, s.contenus, oa.intitule, a.activite)) })).filter((oa) => oa.seances.length) }))
+    oa: p.oa.map((oa) => ({ ...oa, seances: oa.seances.filter((s) => correspond(s.os, s.contenus, oa.intitule || "", a.activite)) })).filter((oa) => oa.seances.length) }))
     .filter((p) => p.oa.length) })).filter((a) => a.paliers.length);
   const nbSeances = guide.reduce((n, a) => n + a.paliers.reduce((m, p) => m + p.oa.reduce((k, oa) => k + oa.seances.length, 0), 0), 0);
   const generer = async (s) => { // la fiche est construite par le serveur à partir du guide, puis appartient à l'enseignant
@@ -64,8 +64,8 @@ export function Preparation() {
         {a.paliers.map((p) => (<details className="palier" key={p.numero} open={!!cherche || a.paliers.length === 1}>
           <summary><strong>Palier {p.numero}</strong> <span className="muted">· {p.duree} · p. {p.pages[0]}{p.pages[1] !== p.pages[0] ? `-${p.pages[1]}` : ""}</span>
             <span className="palier-intitule">{p.intitule}</span></summary>
-          {p.oa.map((oa) => (<div className="oa" key={oa.intitule}>
-            <h4>{oa.numero ? `OA ${oa.numero} · ` : ""}{oa.intitule}{oa.duree && <span className="muted"> · {oa.duree}</span>}</h4>
+          {p.oa.map((oa, i) => (<div className="oa" key={i}>
+            <h4>{[oa.numero && `OA ${oa.numero}`, oa.intitule].filter(Boolean).join(" · ")}{oa.duree && <span className="muted"> · {oa.duree}</span>}</h4>
             {oa.seances.map((s) => (<div className="lesson-card seance" key={s.id}>
               <div className="lesson-info">
                 <span className="lesson-title">{s.os}</span>
