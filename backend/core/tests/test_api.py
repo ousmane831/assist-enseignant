@@ -421,6 +421,16 @@ class GestionDemandesAdmin(APITestCase):
         self.ens = U.objects.create_user("ens", password="mdp-test-E1")
         self.adm = U.objects.create_user("adm", password="mdp-test-A1", is_staff=True)
 
+    def test_actions_admin_django_horodatees_et_attribuees(self):
+        su = U.objects.create_superuser("chef", password="mdp-test-S1")
+        self.client.force_login(su)
+        r = self.client.post("/admin/core/demandecompte/", {"action": "marquer_rejetee", "_selected_action": [self.d.id]})
+        self.assertEqual(r.status_code, 302)
+        self.d.refresh_from_db()
+        self.assertEqual((self.d.statut, self.d.traite_par), ("rejetee", su))
+        self.assertIsNotNone(self.d.traite_le)
+        self.assertEqual(self.client.get("/admin/core/demandecompte/add/").status_code, 403)  # pas de création ici
+
     def test_acces_refuse_sans_role_administrateur(self):
         self.client.force_authenticate(None)
         self.assertEqual(self.client.get(self.URL).status_code, 401, "anonyme")
