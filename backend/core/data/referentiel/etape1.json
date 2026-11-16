@@ -1,0 +1,421 @@
+{
+  "schema_version": 2,
+  "guide": {
+    "id": "etape1",
+    "nom": "Guide pédagogique de l’enseignement élémentaire — Étape 1",
+    "etape": 1,
+    "niveaux": ["CI", "CP"],
+    "source_fichier": "GUIDE PEDAGOGIQUE ETAPE 1.pdf",
+    "nombre_pages": 234,
+    "editeur": "Ministère de l’Éducation nationale (Sénégal)"
+  },
+  "activites": [
+    {
+      "id": "e1-co",
+      "domaine": "Langue et communication",
+      "activite": "Communication orale",
+      "matiere": "Français",
+      "pages": [32, 45],
+      "statut_transcription": "verifiee_automatiquement",
+      "competence_base": "Intégrer le vocabulaire adéquat, les comportements non verbaux, le schéma intonatif et des règles syntaxiques simples dans des situations de production d’énoncés oraux relatifs au contact social et à la narration/description.",
+      "criteres": [
+        "Pertinence : la production est en adéquation avec la situation ou avec la consigne.",
+        "Cohérence : Les différents éléments de la production s’enchaînent de manière logique.",
+        "Correction : les outils de la discipline sont correctement utilisés."
+      ],
+      "paliers": [
+        {
+          "numero": 1,
+          "niveau": "CI",
+          "pages": [32, 33],
+          "intitule": "Intégrer le vocabulaire adéquat, les comportements non verbaux, le schéma intonatif et des règles syntaxiques simples dans des situations de production d’énoncés oraux relatifs à la prise de contact et à la prise de congé.",
+          "duree": "8 semaines (Un OS par semaine)",
+          "remarque": "La progression « Un OS par semaine » donne au maître la possibilité d’interroger plus d’élèves, de multiplier les situations d’apprentissage et de faire les remédiations nécessaires.",
+          "oa": [
+            {
+              "numero": "1",
+              "intitule": "Saluer/réagir",
+              "seances": [
+                {"id": "e1-co-p1-oa1-s1", "os": "Saluer une personne/ réagir à une salutation", "contenus": "Salutations : Bonjour Farma, bonsoir Ngor ; salut Alfred…"},
+                {"id": "e1-co-p1-oa1-s2", "os": "Saluer une personne/ réagir à une salutation", "contenus": "Demande de nouvelles : Comment ça va ? Comment tu vas ? Comment vas-tu ? ça va (bien, très bien, mal)"}
+              ]
+            },
+            {
+              "numero": "2",
+              "intitule": "Se présenter et demander à quelqu’un de se présenter",
+              "seances": [
+                {"id": "e1-co-p1-oa2-s1", "os": "Se présenter et demander à son interlocuteur de se présenter", "contenus": "Verbe être au présent + prénom\nMoi, mon nom, mon prénom, c’est…\nVerbe s’appeler au présent + prénom : je m’appelle\nComment tu t’appelles ? Tu t’appelles comment ? Comment t’appelles-tu ? Quel est ton nom ? Quel est ton prénom ?"},
+                {"id": "e1-co-p1-oa2-s2", "os": "Se présenter et demander à son interlocuteur de se présenter", "contenus": "Je suis… Et toi ? J’habite… Tu habites où ? Où habites-tu ?\nMon âge, c’est…\nTu as quel âge ? Quel âge as-tu ?… (j’ai six ans)"}
+              ]
+            },
+            {
+              "numero": "3",
+              "intitule": "Présenter quelqu’un",
+              "seances": [
+                {"id": "e1-co-p1-oa3-s1", "os": "Présenter quelqu’un", "contenus": "Je te présente… Il / Elle s’appelle… C’est / Voici / Voilà"},
+                {"id": "e1-co-p1-oa3-s2", "os": "Présenter quelqu’un", "contenus": "Formules appelant une présentation : Qui est-ce ? C’est qui ? Qui c’est ?\nLes présentatifs tels que : c’est lui, c’est elle, c’est…\nIl habite, elle habite…"}
+              ]
+            },
+            {
+              "numero": "4",
+              "intitule": "Prendre congé",
+              "seances": [
+                {"id": "e1-co-p1-oa4-s1", "os": "Prendre congé", "contenus": "Au revoir, à demain, à bientôt, à tout à l’heure"},
+                {"id": "e1-co-p1-oa4-s2", "os": "Prendre congé", "contenus": "Quitter quelqu’un (je te quitte Anna)\nMerci. Je te remercie"}
+              ]
+            },
+            {
+              "numero": "",
+              "intitule": "Restituer des comptines et des poèmes",
+              "duree": "2 textes tout au long du palier",
+              "seances": [
+                {"id": "e1-co-p1-rec-s1", "os": "Mémoriser et restituer une comptine", "contenus": "Poèmes, comptines, tons et gestes qui conviennent"},
+                {"id": "e1-co-p1-rec-s2", "os": "Mémoriser et restituer un poème", "contenus": "Poèmes, comptines, tons et gestes qui conviennent"}
+              ]
+            }
+          ],
+          "integration": {
+            "titre": "Activités d’intégration et de remédiation (2 à 3 jours)",
+            "contexte": "Un nouvel élève vient d’arriver dans ta classe et partage la même table que toi. Vous faites connaissance. A la fin de la classe, avant de vous quitter pour rentrer à la maison, il te demande de le présenter à ton frère qui est dans une autre classe.",
+            "consigne": "Joue la scène",
+            "production_attendue": "Dans la classe, l’élève doit saluer, se présenter et demander au nouvel élève d’en faire autant. Dans la cour, l’élève doit faire les présentations et prendre congé de son nouvel ami",
+            "indications": "Mise en place de la situation de communication : d’abord sur une table-banc un élève joue la scène de l’ancien élève, un autre le rôle du nouveau ; ensuite devant la porte, la rencontre avec le frère."
+          }
+        },
+        {
+          "numero": 2,
+          "niveau": "CI",
+          "pages": [34, 35],
+          "intitule": "Intégrer le vocabulaire adéquat, les comportements non verbaux, le schéma intonatif et des règles syntaxiques simples dans des situations de production d’énoncés oraux relatifs à la prise de contact, à la prise de congé et à la sollicitation (recherche d’informations)",
+          "duree": "8 semaines (Un OS par semaine)",
+          "oa": [
+            {
+              "numero": "1",
+              "intitule": "Saluer un groupe/ réagir",
+              "seances": [
+                {"id": "e1-co-p2-oa1-s1", "os": "Saluer un groupe, réagir à une salutation", "contenus": "Comment vous allez ? Comment allez-vous ? Vous allez bien ?\nOui, ça va… oui nous allons bien"},
+                {"id": "e1-co-p2-oa1-s2", "os": "Se présenter en groupe", "contenus": "Nous sommes des élèves ; nous sommes les enfants de…, nous sommes des filles…"}
+              ]
+            },
+            {
+              "numero": "2",
+              "intitule": "Demander un renseignement/Réagir",
+              "seances": [
+                {"id": "e1-co-p2-oa2-s1", "os": "Demander un renseignement en utilisant où ?", "contenus": "Où + verbe + pronom + complément ?\nExemples : Où se trouve… ? Où est… ?"},
+                {"id": "e1-co-p2-oa2-s2", "os": "Demander un renseignement en utilisant comment ?", "contenus": "Comment + verbe + pronom + complément ?\nExemples : comment allume-t-on la télé ?"},
+                {"id": "e1-co-p2-oa2-s3", "os": "Demander un renseignement en utilisant quand ?", "contenus": "Quand + verbe + pronom + complément ?\nExemple : Quand pars-tu à l’école ?…"},
+                {"id": "e1-co-p2-oa2-s4", "os": "Demander un renseignement en utilisant Qui est-ce qui… ? qu’est-ce que ?", "contenus": "Qui est-ce qui + verbe + complément ? qu’est-ce que + verbe + complément ?\nExemples : Qui est-ce qui a pris mon crayon… ? Qu’est-ce que tu as fait à Mbour ?"},
+                {"id": "e1-co-p2-oa2-s5", "os": "Demander un renseignement en utilisant est-ce que… ?", "contenus": "Est-ce que + pronom + verbe + complément ?\nExemple : Est-ce que tu vas au match ?"},
+                {"id": "e1-co-p2-oa2-s6", "os": "Demander un renseignement en utilisant combien ?", "contenus": "Combien ça coûte ? ça coûte (cent francs)…"}
+              ]
+            },
+            {
+              "numero": "",
+              "intitule": "Restituer des comptines et des poèmes",
+              "duree": "2 textes tout au long du palier",
+              "seances": [
+                {"id": "e1-co-p2-rec-s1", "os": "Mémoriser et restituer une comptine", "contenus": "Poèmes, comptines, tons et gestes qui conviennent"},
+                {"id": "e1-co-p2-rec-s2", "os": "Mémoriser et restituer un poème", "contenus": "Poèmes, comptines, tons et gestes qui conviennent"}
+              ]
+            }
+          ],
+          "integration": {
+            "titre": "Activités d’intégration et de remédiation (2 à 3 jours)",
+            "contexte": "Un dimanche, tu décides de rendre visite à ton nouvel ami Moustapha Tine. Tu passes d’abord au marché pour acheter des fruits. Tu demandes les prix pour choisir ce qu’il faut apporter à la famille de ton ami. Arrivé dans le quartier, tu rencontres un groupe de personnes à qui tu demandes de t’indiquer la maison.",
+            "consigne": "Joue la scène.",
+            "production_attendue": "Pour acheter, l’élève doit demander le prix des fruits. Ensuite, il doit saluer le groupe de personnes, demander un renseignement pour retrouver la maison, et les quitter.",
+            "indications": "Mise en place des situations de communication : scène de marché, scène de rencontre avec le groupe de personnes (prise de contact, demande de renseignements, prise de congé). Explicitation de la consigne."
+          }
+        },
+        {
+          "numero": 3,
+          "niveau": "CI",
+          "pages": [36, 36],
+          "intitule": "Intégrer le vocabulaire adéquat, les comportements non verbaux, le schéma intonatif et des règles syntaxiques simples dans des situations de production d’énoncés oraux relatifs à la prise de contact, à la prise de congé et à la sollicitation (demande de permission et de service)",
+          "duree": "4 semaines (Un OS par semaine)",
+          "oa": [
+            {
+              "numero": "1",
+              "intitule": "Demander la permission/Réagir",
+              "seances": [
+                {"id": "e1-co-p3-oa1-s1", "os": "Demander la permission", "contenus": "Vouloir au présent + verbes usuels + complément + S’il vous plaît\nExemples : je veux sortir s’il vous plaît ; je veux aller aux toilettes, merci."},
+                {"id": "e1-co-p3-oa1-s2", "os": "Demander la permission", "contenus": "Est-ce que + je/nous + pouvoir au présent + verbe à l’infinitif + S’il vous plaît\nExemples : est-ce que je peux sortir, s’il vous plaît ? Est-ce que nous pouvons sortir ?\nEst-ce que + je/nous + pouvoir au présent + verbe à l’infinitif + complément\nExemples : Est-ce que je peux prendre ton livre ? Est-ce que nous pouvons prendre ton livre ?"}
+              ]
+            },
+            {
+              "numero": "2",
+              "intitule": "Demander un service/réagir",
+              "seances": [
+                {"id": "e1-co-p3-oa2-s1", "os": "Demander un service", "contenus": "Prêter à l’impératif + pronom + COD\nExemples : prête-moi ton bic…\nOui, bien sûr… Merci… je vous remercie."},
+                {"id": "e1-co-p3-oa2-s2", "os": "Demander un service", "contenus": "Veux-tu ou peux-tu + me/nous + verbe + complément + s’il te plaît\nExemples : Veux-tu me donner une feuille s’il te plaît ? Peux-tu me montrer ton livre s’il te plaît ?\nTu peux + me/nous + verbe + complément + s’il te plaît\nExemples : tu peux me prêter un livre ? Tu peux nous prêter un livre ?"}
+              ]
+            },
+            {
+              "numero": "",
+              "intitule": "Restituer des comptines et des poèmes",
+              "duree": "2 textes tout au long du palier",
+              "seances": [
+                {"id": "e1-co-p3-rec-s1", "os": "Mémoriser et restituer une comptine", "contenus": "Poèmes, comptines, tons et gestes qui conviennent"},
+                {"id": "e1-co-p3-rec-s2", "os": "Mémoriser et restituer un poème", "contenus": "Poèmes, comptines, tons et gestes qui conviennent"}
+              ]
+            }
+          ],
+          "integration": {
+            "titre": "Situation d’intégration",
+            "contexte": "Un après-midi, tu veux amener ton ami Moustapha Tine à la bibliothèque de ton quartier pour lui montrer un bon album d’images que tu as aimé. Tu demandes la permission à tes parents pour quitter la maison. Arrivé à la bibliothèque, tu t’adresses au bibliothécaire pour t’aider à retrouver le livre.",
+            "consigne": "Joue la scène.",
+            "production_attendue": "L’élève doit demander la permission à ses parents. Il doit ensuite demander service au bibliothécaire pour retrouver l’album. NB : Ne pas oublier les salutations et la prise de congé.",
+            "indications": "Mise en place des situations de communication : scène à la maison, scène à la bibliothèque. Explicitation de la consigne."
+          }
+        },
+        {
+          "numero": 4,
+          "niveau": "CI",
+          "pages": [37, 38],
+          "intitule": "Intégrer le vocabulaire adéquat, les comportements non verbaux, le schéma intonatif et des règles syntaxiques simples dans des situations de production d’énoncés oraux relatifs à la prise de contact, à la prise de congé, à la sollicitation et à l’expression de besoins, de goûts et de préférences",
+          "duree": "5 semaines (Un OS par semaine)",
+          "oa": [
+            {
+              "numero": "1",
+              "intitule": "Exprimer ses besoins/Réagir",
+              "seances": [
+                {"id": "e1-co-p4-oa1-s1", "os": "Exprimer ses besoins", "contenus": "Avoir faim, avoir soif, au présent de l’indicatif (formes affirmative et négative).\nMoi aussi"},
+                {"id": "e1-co-p4-oa1-s2", "os": "Exprimer ses besoins", "contenus": "Avoir besoin de, au présent de l’indicatif + Nom/verbe.\nExemples : j’ai besoin de sortir / j’ai besoin d’un crayon."}
+              ]
+            },
+            {
+              "numero": "2",
+              "intitule": "Exprimer ses sentiments/Réagir",
+              "seances": [
+                {"id": "e1-co-p4-oa2-s1", "os": "Exprimer ses sentiments", "contenus": "Verbe être au présent + adjectif.\nExemple : je suis content.\nLes phrases exclamatives : C’est beau ! C’est magnifique !\nLa négation : Ce n’est pas joli."},
+                {"id": "e1-co-p4-oa2-s2", "os": "Exprimer ses sensations", "contenus": "Avoir mal, avoir chaud, avoir froid au présent de l’indicatif."}
+              ]
+            },
+            {
+              "numero": "3",
+              "intitule": "Exprimer ses préférences/Réagir",
+              "seances": [
+                {"id": "e1-co-p4-oa3-s1", "os": "Exprimer ses préférences", "contenus": "Verbe préférer au présent + complément (forme affirmative)\nExemple : je préfère la robe bleue."},
+                {"id": "e1-co-p4-oa3-s2", "os": "Exprimer ses préférences", "contenus": "Verbe aimer au présent + complément (formes affirmative et négative)\nExemples : J’aime le riz au poisson ; Je n’aime pas les mangues vertes"}
+              ]
+            },
+            {
+              "numero": "",
+              "intitule": "Restituer des comptines et des poèmes",
+              "duree": "2 textes tout au long du palier",
+              "seances": [
+                {"id": "e1-co-p4-rec-s1", "os": "Mémoriser et restituer une comptine", "contenus": "Poèmes, comptines, tons et gestes qui conviennent"},
+                {"id": "e1-co-p4-rec-s2", "os": "Mémoriser et restituer un poème", "contenus": "Poèmes, comptines, tons et gestes qui conviennent"}
+              ]
+            }
+          ],
+          "integration": {
+            "titre": "Activités d’intégration et de remédiation (2 à 3 jours)",
+            "contexte": "A la bibliothèque, ton ami Moustapha Tine exprime le besoin de voir d’autres albums et BD. Le bibliothécaire vous montre beaucoup d’ouvrages. Vous discutez pour dire vos préférences respectives. A la fin de la visite, chacun d’entre vous exprime ses sentiments.",
+            "consigne": "Joue la scène.",
+            "production_attendue": "L’élève doit exprimer ses besoins, dire ce qu’il préfère et exprimer ses sentiments par rapport à la visite.",
+            "indications": "Mise en place des situations de communication amenant les élèves à l’expression de besoins, de préférence et de sentiments. Explicitation de la consigne"
+          },
+          "evaluation": {
+            "titre": "Situation d’évaluation",
+            "contexte": "A l’approche d’une fête, tu vas au marché avec maman pour acheter un article (une paire de chaussures, par exemple). Tu trouves ton ami Moustapha Tine qu’elle ne connaît pas. Tu demandes à ton ami de t’aider à choisir. Après, tu quittes ton ami pour retourner à la maison.",
+            "consigne": "Joue la scène : de la rencontre avec ton ami à ton retour à la maison.",
+            "production_attendue": "L’élève doit saluer son ami, faire les présentations, dire sa préférence en la justifiant ; demander l’avis de son ami ; remercier à la fin de l’achat et prendre congé.",
+            "indications": "Mise en place de la situation par le maître : aménager un coin boutique avec des articles ; distribuer les rôles ; expliquer ce qui est attendu"
+          }
+        },
+        {
+          "numero": 5,
+          "niveau": "CP",
+          "pages": [39, 40],
+          "intitule": "Intégrer le vocabulaire adéquat, les comportements non verbaux, le schéma intonatif et des règles syntaxiques simples dans des situations de production d’énoncés oraux de deux à quatre phrases relatifs à la prise de contact, à la prise de congé, à la sollicitation, à l’expression de besoins, de goûts, de préférences, d’avis, de désir, d’inquiétude et de déception.",
+          "duree": "6 semaines (Un OS par semaine)",
+          "remarque": "NB : Il ne s’agit pas d’attendre la fin des autres OA pour faire les activités de récitation. Comme indiqué dans la colonne « durée », il faut les réaliser tout au long du palier.",
+          "oa": [
+            {
+              "numero": "1",
+              "intitule": "Exprimer un désir",
+              "seances": [
+                {"id": "e1-co-p5-oa1-s1", "os": "Exprimer un désir", "contenus": "Avoir envie de + verbe + C\nExemple : j’ai envie de regarder un film,…\nDésirer + complément\nExemple : je désire aller en vacances à Dakar"},
+                {"id": "e1-co-p5-oa1-s2", "os": "Demander à quelqu’un ce qu’il désire", "contenus": "Forme interrogative : As-tu envie de… ? De quoi as-tu envie ? Tu désires sortir ?"}
+              ]
+            },
+            {
+              "numero": "2",
+              "intitule": "Exprimer un avis",
+              "seances": [
+                {"id": "e1-co-p5-oa2-s1", "os": "Exprimer son avis", "contenus": "Etre d’accord (formes affirmative et négative)\nExemples : je suis d’accord avec toi ; je ne suis pas d’accord… c’est faux, ce n’est pas vrai"},
+                {"id": "e1-co-p5-oa2-s2", "os": "Demander à quelqu’un son avis", "contenus": "Est-ce que tu es d’accord ?"}
+              ]
+            },
+            {
+              "numero": "3",
+              "intitule": "Exprimer son inquiétude",
+              "seances": [
+                {"id": "e1-co-p5-oa3-s1", "os": "Exprimer son inquiétude", "contenus": "Avoir peur de / Avoir peur\nExemple : j’ai peur… ça fait mal ?\nJe suis fatigué… c’est loin ?\nOn va être en retard ? On va rater la fête ?"}
+              ]
+            },
+            {
+              "numero": "4",
+              "intitule": "Exprimer sa déception",
+              "seances": [
+                {"id": "e1-co-p5-oa4-s1", "os": "Exprimer sa déception", "contenus": "C’est dommage !\nExemple : on a raté le train ! c’est dommage !\nÊtre déçu ; exemple : je suis déçu ; nous avons perdu le match !"}
+              ]
+            },
+            {
+              "numero": "",
+              "intitule": "Restituer des comptines et des poèmes",
+              "duree": "2 textes tout au long du palier",
+              "seances": [
+                {"id": "e1-co-p5-rec-s1", "os": "Mémoriser et restituer une comptine", "contenus": "Poèmes, comptines, tons et gestes adéquats"},
+                {"id": "e1-co-p5-rec-s2", "os": "Mémoriser et restituer un poème", "contenus": "Poèmes, comptines, tons et gestes adéquats"}
+              ]
+            }
+          ],
+          "integration": {
+            "titre": "Activités d’intégration et de remédiation (2 à 3 jours)",
+            "contexte": "Tu es en vacances chez des parents. Un jour tu veux aller au stade voir un match de football. Tu es un peu inquiet à cause des violences et tu demandes l’avis de ton cousin. A ton retour, tu lui parles du match qui ne t’a pas plu.",
+            "consigne": "Joue la scène",
+            "production_attendue": "L’élève doit exprimer son désir d’aller au match, son inquiétude par rapport aux violences, demander l’avis de son cousin ; puis exprimer sa déception",
+            "indications": "Expliciter la consigne : 1er moment : avant de partir au stade ; 2ème moment : de retour du stade"
+          }
+        },
+        {
+          "numero": 6,
+          "niveau": "CP",
+          "pages": [41, 42],
+          "intitule": "Intégrer le vocabulaire adéquat, les comportements non verbaux, le schéma intonatif et des règles syntaxiques simples dans des situations de production d’énoncés oraux de deux à quatre phrases relatifs à la prise de contact, à la prise de congé, à la sollicitation, à l’expression de besoins, de goûts, de préférences, d’avis, de désir, d’inquiétude, de déception et à l’injonction",
+          "duree": "7 semaines (Un OS par semaine)",
+          "oa": [
+            {
+              "numero": "1",
+              "intitule": "Inviter quelqu’un",
+              "seances": [
+                {"id": "e1-co-p6-oa1-s1", "os": "Inviter quelqu’un", "contenus": "Je (nous) t’(vous) invite + compléments (verbe ou nom)\nExemples : je (nous) t’invite à mon anniversaire ; nous t’invitons… ; je (nous) t’invite à manger.\n- d’accord ; merci"},
+                {"id": "e1-co-p6-oa1-s2", "os": "Inviter quelqu’un", "contenus": "Je (nous) (te) vous demande de + verbe\nExemples : je (nous) te demande de venir à mon anniversaire. Nous te demandons de venir à notre kermesse\n- d’accord ; merci"},
+                {"id": "e1-co-p6-oa1-s3", "os": "Inviter quelqu’un", "contenus": "Tu veux/viens + verbes d’action usuels\nExemples : tu veux/viens jouer avec moi"},
+                {"id": "e1-co-p6-oa1-s4", "os": "Inviter quelqu’un", "contenus": "Tu viens avec moi (nous) + CCL\nExemple : tu viens avec moi au cinéma\nTu me (nous) accompagne + CCL"}
+              ]
+            },
+            {
+              "numero": "2",
+              "intitule": "Interdire ou recommander quelque chose",
+              "seances": [
+                {"id": "e1-co-p6-oa2-s1", "os": "Interdire quelque chose", "contenus": "Il ne faut pas…\nExemple : il ne faut pas monter sur la table\nVerbes à l’impératif, forme négative\nExemple : Ne jette pas les ordures par terre"},
+                {"id": "e1-co-p6-oa2-s2", "os": "Recommander quelque chose", "contenus": "Il faut…\nExemple : il faut arroser avant de balayer\nVerbes à l’impératif, forme affirmative\nExemple : porte un habit lourd, il fait froid"},
+                {"id": "e1-co-p6-oa2-s3", "os": "Donner des ordres", "contenus": "(dépêchez-vous, rends-moi mon livre, arrêtez ! tais-toi…)"}
+              ]
+            },
+            {
+              "numero": "",
+              "intitule": "Restituer des comptines et des poèmes",
+              "duree": "2 textes tout au long du palier",
+              "seances": [
+                {"id": "e1-co-p6-rec-s1", "os": "Mémoriser et restituer une comptine", "contenus": "Poèmes, comptines. Tons et gestes qui conviennent"},
+                {"id": "e1-co-p6-rec-s2", "os": "Mémoriser et restituer un poème", "contenus": "Poèmes, comptines. Tons et gestes qui conviennent"}
+              ]
+            }
+          ],
+          "integration": {
+            "titre": "Activités d’intégration et de remédiation (2 à 3 jours)",
+            "contexte": "Tu veux inviter ton camarade de classe à venir assister à ton anniversaire (cérémonies familiales). Il ne connaît pas le chemin.",
+            "consigne": "Par téléphone, invite-le et donne-lui des recommandations concernant l’itinéraire à prendre (les repères, les dangers de circulation à éviter…)",
+            "production_attendue": "L’élève doit utiliser des formules d’invitation et de recommandations",
+            "indications": "Explication de la consigne. Mise en place de la situation de communication (téléphone, portable, à défaut simuler). Remédiation : revenir sur les apprentissages ponctuels non maîtrisés ; proposer une autre situation d’intégration…"
+          }
+        },
+        {
+          "numero": 7,
+          "niveau": "CP",
+          "pages": [43, 43],
+          "intitule": "Intégrer le vocabulaire adéquat, les comportements non verbaux, le schéma intonatif et des règles syntaxiques simples dans des situations de production d’énoncés oraux de deux à quatre phrases relatifs à la prise de contact, à la prise de congé, à la sollicitation, à l’injonction, à l’expression de besoins, de goûts, de préférences, d’avis, de désir, d’inquiétude, de déception et à la narration.",
+          "duree": "5 semaines (Un OS par semaine)",
+          "contenus": "Verbes d’action usuels : aller, jouer, manger, fermer, ouvrir etc. au présent et au passé composé\nConnecteurs temporels : hier, aujourd’hui, autrefois, pendant.\nConnecteurs logiques : d’abord, ensuite, enfin, avant, après, et, puis, mais, etc.",
+          "oa": [
+            {
+              "numero": "1",
+              "intitule": "Relater un événement vécu",
+              "seances": [
+                {"id": "e1-co-p7-oa1-s1", "os": "Relater ce qu’on a fait", "contenus": ""},
+                {"id": "e1-co-p7-oa1-s2", "os": "Relater ce qu’a fait un autre", "contenus": ""}
+              ]
+            },
+            {
+              "numero": "2",
+              "intitule": "Raconter un événement imaginaire",
+              "seances": [
+                {"id": "e1-co-p7-oa2-s1", "os": "Raconter une petite histoire imaginée", "contenus": ""},
+                {"id": "e1-co-p7-oa2-s2", "os": "Raconter un conte entendu", "contenus": ""},
+                {"id": "e1-co-p7-oa2-s3", "os": "Raconter un conte lu", "contenus": ""}
+              ]
+            },
+            {
+              "numero": "",
+              "intitule": "Restituer des comptines et des poèmes",
+              "duree": "2 textes tout au long du palier",
+              "seances": [
+                {"id": "e1-co-p7-rec-s1", "os": "Mémoriser et restituer une comptine", "contenus": "Poèmes, comptines, tons et gestes qui conviennent"},
+                {"id": "e1-co-p7-rec-s2", "os": "Mémoriser et restituer un poème", "contenus": "Poèmes, comptines, tons et gestes qui conviennent"}
+              ]
+            }
+          ],
+          "integration": {
+            "titre": "Activités d’intégration et de remédiation (2 à 3 jours)",
+            "contexte": "Le concours du « meilleur narrateur » est organisé en classe. Ton tour arrive.",
+            "consigne": "Raconte une histoire vécue ou imaginée.",
+            "production_attendue": "L’élève doit raconter une histoire cohérente et complète d’au moins quatre phrases avec utilisation de verbes d’action au présent et au passé composé et de connecteurs (temporels et logiques)",
+            "indications": "Le maître explique la consigne. Préciser que c’est une action passée pour l’utilisation du passé composé. Mise en situation (en classe, dans la cour, ou dans un autre lieu) pour s’approcher le plus de la réalité. Le maître organise plusieurs séances."
+          }
+        },
+        {
+          "numero": 8,
+          "niveau": "CP",
+          "pages": [44, 45],
+          "intitule": "Intégrer le vocabulaire adéquat, les comportements non verbaux, le schéma intonatif et des règles syntaxiques simples dans des situations de production d’énoncés oraux de deux à quatre phrases relatifs au contact social et à la narration/description.",
+          "duree": "4 semaines (Un OS par semaine)",
+          "oa": [
+            {
+              "numero": "1",
+              "intitule": "Comparer des objets, des personnes, des lieux, des animaux…",
+              "seances": [
+                {"id": "e1-co-p8-oa1-s1", "os": "Comparer des objets, des personnes, des lieux, des animaux…", "contenus": "Les comparatifs : plus que… moins que… aussi que…\nExemples : Ton petit frère est plus rapide que toi ; Mon sac est plus gros que le tien"}
+              ]
+            },
+            {
+              "numero": "2",
+              "intitule": "Décrire un objet ou un lieu, un animal, une personne",
+              "contenus": "Auxiliaire être au présent, emploi des adjectifs qualificatifs usuels (forme, couleur, dimension, taille…), les comparatifs : comme, plus que, moins que, aussi que\nIndicateurs de lieu : ici, là-bas, sur, sous, à côté, près de",
+              "seances": [
+                {"id": "e1-co-p8-oa2-s1", "os": "Décrire un objet ou un lieu", "contenus": ""},
+                {"id": "e1-co-p8-oa2-s2", "os": "Décrire un animal", "contenus": ""},
+                {"id": "e1-co-p8-oa2-s3", "os": "Décrire une personne/ personnage", "contenus": ""}
+              ]
+            },
+            {
+              "numero": "",
+              "intitule": "Restituer des comptines et des poèmes",
+              "seances": [
+                {"id": "e1-co-p8-rec-s1", "os": "Mémoriser et restituer une comptine", "contenus": "Poèmes, comptines, tons et gestes qui conviennent"},
+                {"id": "e1-co-p8-rec-s2", "os": "Mémoriser et restituer un poème", "contenus": "Poèmes, comptines, tons et gestes qui conviennent"}
+              ]
+            }
+          ],
+          "integration": {
+            "titre": "Activités d’intégration et de remédiation (2 à 3 jours)",
+            "contexte": "Tu as perdu un objet (cartable, jouet…). Tu veux que tes camarades t’aident à le retrouver.",
+            "consigne": "Décris-le en quatre phrases pour qu’ils le reconnaissent.",
+            "production_attendue": "L’élève doit donner des précisions sur la couleur, la forme et la taille de l’objet perdu",
+            "indications": "Le maître doit expliquer la consigne et créer la situation de communication (simulation de recherches d’objets perdus en instaurant un dialogue au départ)"
+          },
+          "evaluation": {
+            "titre": "Situation d’évaluation",
+            "contexte": "Tu fais entrer les poules dans le poulailler, un chat arrive et leur fait peur. Une poule s’enfuit et se perd dans le village (ou le quartier). Tu vas trouver ton ami Alfred pour lui demander de t’aider à la retrouver. Tu lui racontes l’événement et tu lui décris la poule.",
+            "consigne": "Joue la scène",
+            "production_attendue": "L’élève doit saluer son ami, lui raconter l’événement, lui demander de l’aider à retrouver la poule. Il devra la décrire pour que Alfred puisse la reconnaître. Avant de le quitter il devra le remercier",
+            "indications": "Le maître explique la consigne. Il fait passer les élèves par petits groupes, en plusieurs séances. Il faut utiliser autant que possible des variantes pour éviter la duplication. En rapport avec la CB, au moins 4 phrases sont attendues de l’élève. Le maître doit jouer le rôle de Alfred ou utiliser un élève sur qui le barème ne sera pas appliqué."
+          }
+        }
+      ]
+    }
+  ]
+}

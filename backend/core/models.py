@@ -41,6 +41,9 @@ class Fiche(models.Model):
     annee_scolaire = models.CharField(max_length=9, blank=True)
     sections = models.JSONField(default=list)  # [{titre, contenu}] : structure flexible
     version_precedente = models.JSONField(null=True, blank=True)
+    # Trace de la source quand la fiche a été générée depuis un guide : {guide, activite, seance, pages}.
+    # Simple référence : la fiche reste une copie de l'enseignant, jamais modifiée par une mise à jour du référentiel.
+    origine = models.JSONField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

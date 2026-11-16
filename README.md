@@ -97,16 +97,38 @@ Chaque évaluation a un statut persistant : **brouillon → vérifiée → valid
 - Pas d'inscription en ligne : les comptes sont créés par l'administrateur.
 - **Photo de profil** : l'envoi exige une connexion (un fichier ne se met pas en file d'attente comme un JSON) et la photo n'est pas relue hors connexion. Les fichiers ne sont servis par Django qu'en développement (`DEBUG=1`) : en production, c'est le serveur web qui sert `/media/` en HTTPS.
 
-## 10. Données pédagogiques PROVISOIRES — à valider
-Matières, types d'évaluation, périodes, rubriques du canevas de fiche, seuils et libellés d'appréciation, modèle de bulletin sont des **valeurs de développement modifiables dans Paramètres**. Les leçons personnelles sont ajoutées par l'enseignant. Un pilote pédagogique est également disponible via `GET /api/referentiel-pedagogique/` (authentification obligatoire) : une proposition CI – communication orale, issue du repérage de la page 32 du guide de l'étape 1, est préremplie dans l'écran Préparer. Le fichier `backend/core/data/referentiel_pilote_etape1_2026.json` enregistre l'année de référence 2026 et la page source.
+## 10. Données pédagogiques provisoires (Paramètres)
+Matières, types d'évaluation, périodes, rubriques du canevas libre, seuils d'appréciation et modèle de bulletin sont des **valeurs provisoires modifiables dans Paramètres**.
+Règles de calcul provisoires (`core/calculs.py`) : note ramenée sur une base configurable (20) ; moyenne de matière pondérée par coefficient d'évaluation ; moyenne générale = moyenne simple des matières ; arrondi à 2 décimales ; ex æquo = même rang ; appréciation automatique = texte du seuil le plus élevé atteint par la moyenne.
 
-Cette entrée est un **résumé de travail non validé**, affiché comme pilote à vérifier et non comme contenu officiel approuvé. Les champs de durée, démarche et évaluation restent à compléter ; aucun modèle d'IA ni génération libre n'est utilisé. Chaque enseignant peut modifier la fiche créée. Le référentiel reste en lecture seule et l'entrée n'est pas activée comme référentiel national (`actif_dans_application: false`).
+## 11. Référentiel des guides et génération automatique des fiches
+**Objectif** : l'enseignant choisit niveau → matière → séance, et la fiche est **générée automatiquement à partir du guide officiel** ;
+la fiche générée lui appartient et **reste entièrement modifiable**. Les guides sont la source, en lecture seule.
 
-L'inventaire initial du guide de l'étape 1 est consigné dans `backend/core/data/inventaire_guide_etape1_2026.json` : il repère les domaines, sous-domaines et pages sources du CI/CP. Une première synthèse des 8 paliers de communication orale (CI : paliers 1 à 4 ; CP : paliers 5 à 8) y est également consignée à partir des pages 32 à 45. **Ce n'est pas encore le référentiel complet** : les tableaux, objectifs détaillés, durées et situations doivent être vérifiés sur le PDF avant leur intégration dans l'application.
-Règles de calcul provisoires (`core/calculs.py`) : note ramenée sur une base configurable (20) ; moyenne de matière pondérée par coefficient d'évaluation ; moyenne générale = moyenne simple des matières ; arrondi à 2 décimales ; ex æquo = même rang ; appréciation automatique = texte du seuil le plus élevé atteint par la moyenne (`appreciation_auto`).
+| Élément | Rôle |
+|---|---|
+| `backend/core/data/referentiel/etapeN.json` | guide transcrit : activité → palier → OA → séances (OS + contenus), situations d'intégration/évaluation, pages sources |
+| `core/referentiel.py` | chargement, filtre par niveau, contrôles, construction des sections d'une fiche |
+| `GET /api/referentiel-pedagogique/` | sommaire (guides, niveaux, activités) ; `?niveau=CI` : séances de ce niveau |
+| `POST /api/fiches/generer/` | `{seance, annee_scolaire?}` → crée la fiche de l'enseignant ; `Fiche.origine` garde la trace (guide, séance, pages) |
+| `manage.py verifier_referentiel --pdf-dir ..` | **contrôle de fidélité** : chaque mot transcrit doit figurer dans le PDF aux pages citées (nécessite `requirements-dev.txt`) |
 
-## 11. Prochaines étapes
-Compléter l'extraction du guide de l'étape 1 pour tous les domaines du CI et du CP, vérifier chaque contenu et sa page source, puis faire valider le référentiel par des enseignants/conseillers pédagogiques avant activation ; compléter les champs du pilote et confirmer l'édition du guide ; étendre ensuite aux étapes 2 et 3 ; valider les règles de calcul et le modèle de bulletin ; générateur PDF ; tests de composants React et tests bout en bout (Playwright) ; PostgreSQL et déploiement HTTPS ; icônes PWA.
+- **Une fiche = une séance = un objectif spécifique (OS)**, rythme du guide (« un OS par semaine »).
+- **Aucune IA** : compétence, palier, OA, OS, contenus, critères et situation d'intégration sont **repris du guide** ; le **déroulement**
+  est un canevas de l'application, annoncé comme tel dans la fiche, à adapter. La section « Source » cite le guide et les pages.
+- Générer à nouveau crée une **nouvelle** fiche : une fiche existante n'est jamais modifiée par le référentiel.
+- Contenus absents d'une séance (cellules fusionnées dans le guide) : hérités de l'OA, puis du palier.
+
+**Avancement de la transcription**
+| Guide | Activité | Niveaux | Pages | État |
+|---|---|---|---|---|
+| Étape 1 (CI-CP) | Communication orale | CI (paliers 1-4), CP (5-8) | 32-45 | ✅ transcrite, fidélité vérifiée (64 séances) |
+| Étape 1 | Communication écrite, mathématiques, ESVS, EPSA | CI-CP | — | à transcrire |
+| Étape 2 (CE1-CE2) | toutes | CE1-CE2 | — | à transcrire |
+
+Ajouter une activité : compléter le JSON du guide, puis `python manage.py verifier_referentiel --pdf-dir ..` (0 écart exigé) et `python manage.py test`.
+Les guides PDF ne sont pas versionnés (`.gitignore`) ; `core/data/inventaire_guide_etape1_2026.json` garde l'inventaire des rubriques et pages de l'étape 1.
+Avant un usage généralisé : faire relire le référentiel par des enseignants/conseillers pédagogiques.
 
 ## 12. Demande de compte (écran de connexion)
 Le bouton **« Demander un compte »** (bas de la page de connexion) ouvre un formulaire : **nom complet, numéro de téléphone,

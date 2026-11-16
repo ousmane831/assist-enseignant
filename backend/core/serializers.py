@@ -9,7 +9,7 @@ ClasseS = mk(m.Classe, read_only_fields=["user"]); EleveS = mk(m.Eleve); LeconS 
 ExerciceS = mk(m.Exercice); EvaluationS = mk(m.Evaluation, read_only_fields=["statut", "valide_le"])
 class FicheS(serializers.ModelSerializer):
     exercices = ExerciceS(many=True, read_only=True)
-    class Meta: model = m.Fiche; fields = "__all__"; read_only_fields = ["user", "version_precedente"]
+    class Meta: model = m.Fiche; fields = "__all__"; read_only_fields = ["user", "version_precedente", "origine"]
 
 TELEPHONE_SN = re.compile(r"^(?:221|00221|\+221)?(3\d{8}|7\d{8})$")  # fixe (33…) et mobile (7x…) du Sénégal
 
