@@ -13,6 +13,9 @@ const PIECES = [["cni", "Carte nationale d'identité"], ["passeport", "Passeport
 // à ajuster avec les enseignants : aucune liste officielle n'est imposée par l'application.
 const CORPS = [["", "—"], ["instituteur", "Instituteur"], ["instituteur_adjoint", "Instituteur adjoint"],
   ["maitre", "Maître contractuel"], ["professeur_ecole", "Professeur d'école"], ["autre", "Autre"]];
+// Étapes des deux parcours guidés : une seule définition, l'étape courante est calculée par chaque écran.
+const ETAPES_FICHE = ["Préparation", "Niveau", "Matière", "Leçon", "Fiche", "Exercices", "Aperçu"];
+const ETAPES_EVALUATION = ["Classe", "Évaluation", "Notes", "Résultats", "Appréciations", "Vérification", "Bulletin"];
 const dt = (d) => new Date(d).toLocaleDateString("fr-FR");
 const msg = (e) => e?.status === 0 ? "🟠 Cette action nécessite une connexion Internet." : e?.status === 404 ? "❌ Cette page n'existe plus ou n'est plus accessible." : e?.status === 400 || e?.status === 409 ? "⚠️ " + (e.detail || "Vérifiez les informations saisies.") : e?.status === 401 ? "Votre session a expiré." : e?.status === 429 ? "⏳ Trop de tentatives en peu de temps. Patientez une minute, puis réessayez." : "❌ Impossible d'enregistrer. Vos données locales sont conservées.";
 // Écran de connexion : distinguer un vrai refus d'identifiants d'un problème technique.
@@ -340,14 +343,7 @@ export function Preparation() {
       <p className="subtitle">Créez une fiche pédagogique en quelques étapes</p>
     </div>
     
-    <div className="progress-bar">
-      <div className="progress-step completed">Niveau</div>
-      <div className="progress-step completed">Matière</div>
-      <div className="progress-step completed">Leçon</div>
-      <div className="progress-step">Fiche</div>
-      <div className="progress-step">Exercices</div>
-      <div className="progress-step">Aperçu</div>
-    </div>
+    <Steps items={ETAPES_FICHE} current={!niv ? 1 : !mat ? 2 : 3} />
     
     <div className="step-section">
       <h2 className="step-title">Étape 1 : Choisissez le niveau</h2>
@@ -413,16 +409,15 @@ export function Fiche() {
   const restore = async () => { await safe(say, () => call("POST", `/fiches/${id}/restaurer/`), "✅ Version précédente restaurée"); reload(); };
   const ex = f.exercices, patchEx = async (e, p) => { const r = await safe(say, () => send("PATCH", `/exercices/${e.id}/`, p)); if (r && !r.queued) reload(); };
   const moveEx = async (i, d) => { const a = ex[i], b = ex[i + d]; if (!b) return; const r = await safe(say, () => Promise.all([send("PATCH", `/exercices/${a.id}/`, { ordre: i + d }), send("PATCH", `/exercices/${b.id}/`, { ordre: i })])); if (r && !r.some((x) => x?.queued)) reload(); };
-  const steps = ["Préparation", "Niveau", "Matière", "Leçon", "Fiche", "Exercices", "Aperçu"];
   if (prev) return (<>
-    <Steps items={steps} current={6} />
+    <Steps items={ETAPES_FICHE} current={6} />
     <div className="apercu">{sel.fiche && <><h1>{f.lecon}</h1><p className="muted">{f.niveau} – {f.matiere}{f.domaine && ` – ${f.domaine}`} – {f.annee_scolaire}</p>
       {s.map((x, i) => <div key={i}><h2>{x.titre}</h2><p style={{ whiteSpace: "pre-wrap" }}>{x.contenu}</p></div>)}</>}
       {sel.ex && ex.filter((e) => e.imprimer).map((e, i) => <div key={e.id}><h2>Exercice {i + 1} : {e.titre}</h2><p style={{ whiteSpace: "pre-wrap" }}>{e.contenu}</p></div>)}</div>
     <div className="noprint"><button className="btn sec" onClick={() => setPrev(false)}>Modifier</button></div><Pdf />
   </>);
   return (<>
-    <Steps items={steps} current={4} /><h1>{f.lecon}</h1><p className="muted">{f.niveau} – {f.matiere} – {f.annee_scolaire} <span className="pill">Canevas provisoire : à valider</span></p>
+    <Steps items={ETAPES_FICHE} current={4} /><h1>{f.lecon}</h1><p className="muted">{f.niveau} – {f.matiere} – {f.annee_scolaire} <span className="pill">Canevas provisoire : à valider</span></p>
     {s.map((x, i) => (<div className="card" key={i} style={{ marginBottom: 12 }}>
       <input aria-label="Titre de la rubrique" value={x.titre} onChange={(e) => upd(i, "titre", e.target.value)} style={{ fontWeight: 700 }} />
       <textarea aria-label={x.titre} value={x.contenu} onChange={(e) => upd(i, "contenu", e.target.value)} style={{ marginTop: 8 }} />
@@ -571,7 +566,7 @@ export function NouvelleEval() {
   const v = { matiere: cfg.matieres[0], type: cfg.types[0], periode: cfg.periodes[0], ...f }, set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const go = async (e) => { e.preventDefault(); const r = await safe(say, () => send("POST", "/evaluations/", { ...v, date: v.date || null, classe: +id }), "✅ Évaluation enregistrée"); if (r?.id) nav(`/evaluations/${r.id}/notes`); };
   const Sel = ({ k, l, o }) => <><label>{l}</label><select value={v[k]} onChange={set(k)}>{o.map((x) => <option key={x}>{x}</option>)}</select></>;
-  return (<form onSubmit={go} style={{ maxWidth: 560 }}><h1>Nouvelle évaluation</h1><p>Classe : <strong>{c.niveau} {c.nom}</strong></p>
+  return (<form onSubmit={go} style={{ maxWidth: 560 }}><Steps items={ETAPES_EVALUATION} current={1} /><h1>Nouvelle évaluation</h1><p>Classe : <strong>{c.niveau} {c.nom}</strong></p>
     <Sel k="matiere" l="Matière" o={cfg.matieres} /><Sel k="type" l="Type" o={cfg.types} /><Sel k="periode" l="Période" o={cfg.periodes} />
     <label>Date</label><input type="date" value={v.date} onChange={set("date")} /><label>Titre</label><input required placeholder="Évaluation de grammaire" value={v.titre} onChange={set("titre")} />
     <label>Note maximale</label><input type="number" min="1" value={v.note_max} onChange={set("note_max")} /><label>Coefficient</label><input type="number" min="0" step="0.5" value={v.coefficient} onChange={set("coefficient")} />
@@ -586,15 +581,7 @@ export function Evaluations() {
       <p className="subtitle">Gérez les évaluations et les notes de vos élèves</p>
     </div>
     
-    <div className="progress-bar">
-      <div className="progress-step">Évaluation</div>
-      <div className="progress-step active">Classe</div>
-      <div className="progress-step">Notes</div>
-      <div className="progress-step">Résultats</div>
-      <div className="progress-step">Appréciations</div>
-      <div className="progress-step">Vérification</div>
-      <div className="progress-step">Bulletin</div>
-    </div>
+    <Steps items={ETAPES_EVALUATION} current={0} />
     
     <h2 className="section-title">Choisissez une classe</h2>
     
@@ -642,7 +629,7 @@ export function Notes() {
   const set = (i, k, v) => { const r = { ...rows[i], [k]: v }; setRows(rows.map((x, j) => (j === i ? r : x))); draftSet(key, r.eleve, { valeur: r.valeur, observation: r.observation }); setEtat("dirty"); };
   const save = (r) => { if (!lock && !bad(r.valeur)) envoyer([{ eleve: r.eleve, valeur: r.valeur ?? "", observation: r.observation }]); };
   const missing = rows.filter((r) => empty(r.valeur)).length, invalid = rows.filter((r) => bad(r.valeur)).length;
-  return (<><Steps items={["Évaluation", "Classe", "Notes", "Résultats", "Appréciations", "Vérification", "Bulletin"]} current={2} />
+  return (<><Steps items={ETAPES_EVALUATION} current={2} />
     <h1>{ev.titre}</h1><p className="muted">{ev.matiere} – {ev.type} – {ev.periode} – sur {+ev.note_max}</p>
     <p role="status" className={etat === "erreur" ? "err" : etat === "ok" ? "okc" : "warn"}>{ETAT[etat]}</p>
     {lock && <p className="warn">🔒 Ces résultats sont validés : ils ne peuvent plus être modifiés. <Link to={`/classes/${ev.classe}/verification?periode=${encodeURIComponent(ev.periode)}`}>Rouvrir pour modifier</Link></p>}
@@ -660,7 +647,7 @@ export function Resultats() {
   const { id } = useParams(), [ev] = useGet(`/evaluations/${id}/`), [r] = useGet(`/evaluations/${id}/resultats/`);
   if (!ev || !r) return <Wait />;
   const max = Math.max(1, ...r.distribution), lab = ["0–25 %", "25–50 %", "50–75 %", "75–100 %"];
-  return (<><Steps items={["Évaluation", "Classe", "Notes", "Résultats", "Appréciations", "Vérification", "Bulletin"]} current={3} /><h1>Résultats : {ev.titre}</h1>
+  return (<><Steps items={ETAPES_EVALUATION} current={3} /><h1>Résultats : {ev.titre}</h1>
     <div className="grid">{[["Moyenne", r.moyenne], ["Meilleure note", r.meilleure], ["Note minimale", r.minimale], ["Élèves", `${r.saisies}/${r.effectif}`]].map(([l, v]) => <div className="card" key={l}><strong style={{ fontSize: "1.6rem" }}>{v ?? "—"}</strong><div className="muted">{l}</div></div>)}</div>
     <h2>Distribution des résultats</h2>{r.distribution.map((n, i) => <div className="row" key={i} style={{ flexWrap: "nowrap" }}><span style={{ flex: "0 0 90px" }}>{lab[i]}</span><div className="bar" style={{ flex: "0 0 " + (n / max) * 60 + "%" }} /><span style={{ flex: "0 0 40px" }}>{n}</span></div>)}
     <h2>Moyennes</h2><table><thead><tr>{r.classement && <th>Rang</th>}<th>Nom</th><th>Note</th></tr></thead><tbody>{r.eleves.map((e) => <tr key={e.eleve}>{r.classement && <td>{e.rang} —</td>}<td>{e.nom}</td><td>{e.note}/{r.note_max}</td></tr>)}</tbody></table>
@@ -686,7 +673,7 @@ export function Appreciations() {
   const personnalises = res.filter((r) => ligne(r.eleve).brouillon); // textes écrits mais non validés : jamais publiés en l'état
   const validerTout = () => envoyer(personnalises.map((r) => ({ eleve: r.eleve, texte: ligne(r.eleve).brouillon, validee: true })), "✅ Vos textes personnalisés sont validés");
   const revenirTout = () => confirmer("Revenir aux appréciations automatiques pour toute la classe ?\n\nLes textes personnalisés seront retirés : l'appréciation sera de nouveau déduite des moyennes.") && envoyer(res.map((r) => ({ eleve: r.eleve, texte: "", validee: false })), "🤖 Appréciations automatiques rétablies pour toute la classe");
-  return (<><Steps items={["Évaluation", "Classe", "Notes", "Résultats", "Appréciations", "Vérification", "Bulletin"]} current={4} /><h1>Appréciations : {per}</h1>
+  return (<><Steps items={ETAPES_EVALUATION} current={4} /><h1>Appréciations : {per}</h1>
     <p className="pill">🤖 Remplies automatiquement à partir des moyennes (barème défini dans <Link to="/parametres">Paramètres</Link>) : rien à saisir. Personnalisez un élève seulement si vous le souhaitez — votre texte validé prévaut alors sur la règle.</p>
     {lock && <p className="warn">🔒 Résultats validés : <Link to={`/classes/${id}/verification${q}`}>rouvrir pour modifier</Link></p>}
     <p className="muted">{ver.appreciations} appréciation(s) prête(s) sur {ver.eleves} · {ver.appreciations_auto ?? 0} automatique(s) · {ver.appreciations_personnalisees ?? 0} personnalisée(s)</p>
@@ -718,7 +705,7 @@ export function Verification() {
     act("valider", { confirmer: v.problemes.length > 0 }, "✅ Résultats validés");
   };
   const S = { brouillon: "📝 Brouillon", verifie: "🔎 Vérifiés", valide: "✅ Validés" }[v.statut];
-  return (<><Steps items={["Évaluation", "Classe", "Notes", "Résultats", "Appréciations", "Vérification", "Bulletin"]} current={5} /><h1>Vérification des résultats — {per}</h1>
+  return (<><Steps items={ETAPES_EVALUATION} current={5} /><h1>Vérification des résultats — {per}</h1>
     <p><span className="badge">{S}</span></p>
     <div className="card"><p>{v.eleves} élèves</p><p>{v.notes_saisies} notes saisies (sur {v.notes_attendues})</p><p>Moyenne générale : {v.moyenne_generale ?? "—"}</p><p>Appréciations prêtes : {v.appreciations}/{v.eleves} — {v.appreciations_auto ?? 0} automatique(s), {v.appreciations_personnalisees ?? 0} personnalisée(s)</p><p>Erreurs : {v.erreurs}</p></div>
     {(v.informations || []).map((i) => <p key={i} className="muted">🤖 {i}</p>)}
@@ -735,9 +722,9 @@ export function Bulletin() {
   const { id } = useParams(), [sp] = useSearchParams(), per = sp.get("periode") || "", q = `?periode=${encodeURIComponent(per)}`, [type, setType] = useState(null), [gen, setGen] = useState(false);
   const [b, setB] = useState(null), [err, setErr] = useState("");
   useEffect(() => { get(`/classes/${id}/bulletins/${q}`).then(setB).catch((e) => setErr(e.status === 409 ? "Les résultats de cette période ne sont pas encore validés." : e.status === 0 ? "Connexion interrompue : les documents ne sont pas encore disponibles hors connexion." : "Impossible de charger les données du document.")); }, [id, per]);
-  if (err) return <><Steps items={["Évaluation", "Classe", "Notes", "Résultats", "Appréciations", "Vérification", "Bulletin"]} current={6} /><Empty>{err}<p><Link className="btn" to={`/classes/${id}/verification${q}`}>Aller à la vérification</Link></p></Empty></>;
+  if (err) return <><Steps items={ETAPES_EVALUATION} current={6} /><Empty>{err}<p><Link className="btn" to={`/classes/${id}/verification${q}`}>Aller à la vérification</Link></p></Empty></>;
   if (!b) return <Wait />;
-  if (!gen) return (<><Steps items={["Évaluation", "Classe", "Notes", "Résultats", "Appréciations", "Vérification", "Bulletin"]} current={6} /><h1>Générer les documents</h1>
+  if (!gen) return (<><Steps items={ETAPES_EVALUATION} current={6} /><h1>Générer les documents</h1>
     <div className="grid">{[["📄", "Bulletin"], ["📘", "Livret"]].map(([i, t]) => <button key={t} className={"choice" + (type === t ? " on" : "")} onClick={() => setType(t)}>{i} {t}</button>)}</div>
     <p className="muted">Modèle provisoire configurable : aucun modèle officiel n'est imposé ni revendiqué par l'application.</p><button className="btn" disabled={!type} onClick={() => setGen(true)}>Générer les documents</button></>);
   return (<><h1 className="noprint">Aperçu du {type.toLowerCase()}</h1><p className="noprint"><button className="btn sec" onClick={() => setGen(false)}>Modifier</button><Pdf /></p><BulletinDocument data={b} type={type} /></>);
