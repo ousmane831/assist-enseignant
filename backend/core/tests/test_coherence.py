@@ -1,6 +1,6 @@
 """Cohérence des listes de choix entre le serveur et l'interface.
 
-Les régions, pièces d'identité et corps sont recopiés dans frontend/src/pages.jsx : l'interface doit pouvoir
+Les régions, pièces d'identité et corps sont recopiés dans frontend/src/pages/communs.jsx : l'interface doit pouvoir
 les afficher hors connexion et sur l'écran de demande de compte (avant toute connexion). Ce test garantit que les
 deux copies restent identiques : une valeur proposée par l'interface mais refusée par le serveur serait un piège.
 """
@@ -12,14 +12,14 @@ from django.test import SimpleTestCase
 
 from core import models as m
 
-PAGES = settings.BASE_DIR.parent / "frontend" / "src" / "pages.jsx"
+PAGES = settings.BASE_DIR.parent / "frontend" / "src" / "pages" / "communs.jsx"
 
 
 def constante(source, nom):
     """Texte de la déclaration `const NOM = [...];` dans le code de l'interface."""
     trouve = re.search(rf"const {nom} = (\[.*?\]);", source, re.S)
     if not trouve:
-        raise AssertionError(f"Constante {nom} introuvable dans pages.jsx")
+        raise AssertionError(f"Constante {nom} introuvable dans pages/communs.jsx")
     return trouve.group(1)
 
 
