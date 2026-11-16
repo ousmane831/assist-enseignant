@@ -1,8 +1,6 @@
-import json
 import re
 import unicodedata
 from collections import defaultdict
-from pathlib import Path
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -18,7 +16,7 @@ from rest_framework.decorators import action, api_view, authentication_classes, 
 from rest_framework.exceptions import APIException, MethodNotAllowed, ValidationError
 from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
-from . import calculs as C, models as m, serializers as s
+from . import calculs as C, models as m, referentiel as R, serializers as s
 from .auth import token_valide
 
 MSG_VALIDE = "Les résultats de cette période sont validés. Rouvrez-les pour les modifier."
@@ -322,6 +320,19 @@ class FicheV(Owned):
                 e.save()
         return Response(s.FicheS(f).data, status=201)
 
+    @action(detail=False, methods=["post"])
+    def generer(self, req):
+        """Génère une fiche à partir d'une séance du référentiel (guide) : {"seance": id, "annee_scolaire"?}.
+        La fiche créée appartient à l'enseignant et reste entièrement modifiable ; le guide n'est jamais modifié."""
+        sid = req.data.get("seance") if isinstance(req.data, dict) else None
+        ctx = R.trouver_seance(str(sid or ""))
+        if not ctx:
+            raise ValidationError({"seance": "Séance introuvable dans le référentiel."})
+        d = R.fiche_depuis_seance(ctx)
+        annee = str(req.data.get("annee_scolaire") or cfg(req.user)["annee_scolaire"] or "")[:9]
+        f = m.Fiche.objects.create(user=req.user, annee_scolaire=annee, **d)
+        return Response(s.FicheS(f).data, status=201)
+
 
 class EvaluationV(Owned):
     queryset, serializer_class, owner, parent = m.Evaluation.objects.all(), s.EvaluationS, "classe__user", "classe"
@@ -568,6 +579,11 @@ def mot_de_passe(req):
 
 @api_view(["GET"])
 def referentiel_pedagogique(req):
-    """Référentiel pédagogique partagé, actuellement limité aux données du pilote."""
-    chemin = Path(__file__).resolve().parent / "data" / "referentiel_pilote_etape1_2026.json"
-    return Response(json.loads(chemin.read_text(encoding="utf-8")))
+    """Référentiel pédagogique (guides transcrits, lecture seule).
+    Sans paramètre : sommaire (guides, niveaux, activités). Avec ?niveau=CI : activités et séances de ce niveau."""
+    niveau = req.query_params.get("niveau")
+    if niveau is None:
+        return Response(R.sommaire())
+    if niveau not in R.NIVEAUX:
+        raise ValidationError({"niveau": "Niveau inconnu."})
+    return Response(R.pour_niveau(niveau))

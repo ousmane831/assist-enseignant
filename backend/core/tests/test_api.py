@@ -55,17 +55,6 @@ class Authentification(Base):
                     "/api/referentiel-pedagogique/"):
             self.assertEqual(self.client.get(url).status_code, 401, url)
 
-    def test_referentiel_pilote_authentifie_et_en_lecture_seule(self):
-        response = self.client.get("/api/referentiel-pedagogique/")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["referentiel"]["annee_reference"], 2026)
-        self.assertTrue(data["referentiel"]["disponible_dans_pilote"])
-        self.assertFalse(data["referentiel"]["actif_dans_application"])
-        self.assertEqual(data["entrees"][0]["niveau"], "CI")
-        self.assertEqual(data["entrees"][0]["source_pages_pdf"], [32])
-        self.assertEqual(self.client.post("/api/referentiel-pedagogique/", {}, format="json").status_code, 405)
-
 
 class Permissions(Base):
     def setUp(self):

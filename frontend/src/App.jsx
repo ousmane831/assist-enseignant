@@ -33,6 +33,7 @@ async function prefetch() { // précharge de quoi travailler hors connexion (che
   try {
     const [cl, ev, fi] = await Promise.all([get("/classes/"), get("/evaluations/"), get("/fiches/")]);
     await Promise.all([get("/eleves/"), get("/parametres/"), get("/me/"), get("/referentiel-pedagogique/"),
+      ...[...new Set(cl.map((c) => c.niveau))].map((n) => get(`/referentiel-pedagogique/?niveau=${n}`)), // guides des niveaux enseignés
       ...cl.flatMap((c) => [get(`/classes/${c.id}/`), get(`/eleves/?classe=${c.id}`), get(`/evaluations/?classe=${c.id}`)]),
       ...ev.flatMap((e) => [get(`/evaluations/${e.id}/`), get(`/evaluations/${e.id}/notes/`)]), ...fi.map((f) => get(`/fiches/${f.id}/`))]);
   } catch { /* hors connexion : on garde le cache existant */ }

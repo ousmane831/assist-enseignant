@@ -7,22 +7,26 @@ import { NIVEAUX, ETAPES_FICHE, dt, safe, supprimer, Pdf } from "./communs";
 
 export function Preparation() {
   const nav = useNavigate(), say = useContext(Say), [cfg] = useGet("/parametres/");
-  const [referentiel] = useGet("/referentiel-pedagogique/");
-  const [niv, setNiv] = useState(), [mat, setMat] = useState(), [q, setQ] = useState(""), [nv, setNv] = useState("");
+  const [niv, setNiv] = useState(), [mat, setMat] = useState(), [q, setQ] = useState(""), [nv, setNv] = useState(""), [enCours, setEnCours] = useState(null);
+  const [ref] = useGet(niv ? `/referentiel-pedagogique/?niveau=${niv}` : null); // guides transcrits, pour ce niveau
   const [lecons, reload] = useGet(niv && mat ? `/lecons/?niveau=${niv}&matiere=${encodeURIComponent(mat)}` : null);
-  const propositions = (referentiel?.referentiel?.disponible_dans_pilote ? referentiel.entrees : [])
-    .filter((e) => e.niveau === niv && e.matiere === mat && `${e.titre} ${e.domaine}`.toLowerCase().includes(q.toLowerCase()));
-  const ouvrir = async (titre, proposition = null) => {
-    const sections = proposition ? [
-      { titre: "Compétence (résumé)", contenu: proposition.competence_resume || "" },
-      { titre: "Objectifs repérés", contenu: proposition.objectifs_reperes.join("\n") },
-      { titre: "Contenus repérés", contenu: proposition.contenu_resume || "" },
-      { titre: "Durée", contenu: proposition.duree || "" },
-      { titre: "Démarche", contenu: proposition.demarche || "" },
-      { titre: "Évaluation", contenu: proposition.evaluation || "" },
-      { titre: "Source et validation", contenu: `Pilote à vérifier pédagogiquement — ${referentiel.referentiel.nom}, référence ${referentiel.referentiel.annee_reference}, page ${proposition.source_pages_pdf.join(", ")}. Ce résumé n'est pas une transcription officielle.` }
-    ] : (cfg?.canevas || []).map((t) => ({ titre: t, contenu: "" }));
-    const f = await safe(say, () => send("POST", "/fiches/", { niveau: niv, matiere: mat, domaine: proposition?.domaine || "", lecon: titre, annee_scolaire: cfg?.annee_scolaire || "", sections }));
+  const activites = ref?.activites || [];
+  const matieresGuide = new Set(activites.map((a) => a.matiere));
+  const matieres = [...new Set([...(cfg?.matieres || []), ...matieresGuide])];
+  const cherche = q.trim().toLowerCase(), correspond = (...t) => !cherche || t.join(" ").toLowerCase().includes(cherche);
+  // Séances du guide pour la matière choisie, filtrées par la recherche (OS, contenus, OA, activité).
+  const guide = activites.filter((a) => a.matiere === mat).map((a) => ({ ...a, paliers: a.paliers.map((p) => ({ ...p,
+    oa: p.oa.map((oa) => ({ ...oa, seances: oa.seances.filter((s) => correspond(s.os, s.contenus, oa.intitule || "", a.activite)) })).filter((oa) => oa.seances.length) }))
+    .filter((p) => p.oa.length) })).filter((a) => a.paliers.length);
+  const nbSeances = guide.reduce((n, a) => n + a.paliers.reduce((m, p) => m + p.oa.reduce((k, oa) => k + oa.seances.length, 0), 0), 0);
+  const generer = async (s) => { // la fiche est construite par le serveur à partir du guide, puis appartient à l'enseignant
+    setEnCours(s.id);
+    try { const f = await safe(say, () => call("POST", "/fiches/generer/", { seance: s.id }), "✅ Fiche générée à partir du guide : vous pouvez la modifier librement"); if (f?.id) nav("/fiches/" + f.id); }
+    finally { setEnCours(null); }
+  };
+  const ouvrir = async (titre) => {
+    const sections = (cfg?.canevas || []).map((t) => ({ titre: t, contenu: "" }));
+    const f = await safe(say, () => send("POST", "/fiches/", { niveau: niv, matiere: mat, domaine: "", lecon: titre, annee_scolaire: cfg?.annee_scolaire || "", sections }));
     if (f?.id) nav("/fiches/" + f.id);
   };
   const ajouter = async () => { if (!nv.trim()) return; await safe(say, () => send("POST", "/lecons/", { niveau: niv, matiere: mat, titre: nv }), "Enregistrement réussi"); setNv(""); reload(); };
@@ -44,29 +48,39 @@ export function Preparation() {
     {niv && <div className="step-section">
       <h2 className="step-title">Étape 2 : Choisissez la matière</h2>
       <div className="subject-grid">
-        {cfg?.matieres.map((m) => <button key={m} className={"subject-card" + (m === mat ? " active" : "")} onClick={() => setMat(m)}>{m}</button>)}
+        {matieres.map((m) => <button key={m} className={"subject-card" + (m === mat ? " active" : "")} onClick={() => setMat(m)}>
+          {m}{matieresGuide.has(m) && <span className="badge-guide">Guide</span>}</button>)}
       </div>
     </div>}
-    
+
     {mat && <div className="step-section">
-      <h2 className="step-title">Étape 3 : Choisissez la leçon</h2>
-      <input className="search-input" placeholder="Rechercher une leçon" aria-label="Rechercher une leçon" value={q} onChange={(e) => setQ(e.target.value)} />
+      <h2 className="step-title">Étape 3 : Choisissez la séance</h2>
+      <input className="search-input" placeholder="Rechercher (objectif, contenu…)" aria-label="Rechercher une séance ou une leçon" value={q} onChange={(e) => setQ(e.target.value)} />
       <p className="context-text">{niv} → {mat}</p>
 
-      {propositions.map((e) => (
-        <div className="lesson-card lesson-pilot" key={e.id}>
-          <div className="lesson-info">
-            <span className="pill">Pilote à vérifier</span>
-            <p className="lesson-pilot-source">{e.domaine} · Guide de l’étape 1, p. {e.source_pages_pdf.join(", ")}</p>
-            <span className="lesson-title">{e.titre}</span>
-            <p>{e.competence_resume}</p>
-            <p className="muted">{e.objectifs_reperes.join(" ")}</p>
-          </div>
-          <button className="btn" onClick={() => ouvrir(e.titre, e)}>Créer une fiche proposée</button>
-        </div>
-      ))}
-      
-      {(lecons || []).filter((l) => l.titre.toLowerCase().includes(q.toLowerCase())).map((l) => (
+      {guide.length > 0 && <p className="param-aide">Une fiche par objectif spécifique (OS). Compétence, objectifs, contenus, critères et situation d'intégration sont repris du guide officiel ; le déroulement est un canevas à adapter. <strong>La fiche générée vous appartient : modifiez-la librement.</strong></p>}
+      {guide.map((a) => (<section className="guide-activite" key={a.id}>
+        <h3>{a.activite} <span className="muted">· {a.domaine} — {a.guide.nom}</span></h3>
+        {a.paliers.map((p) => (<details className="palier" key={p.numero} open={!!cherche || a.paliers.length === 1}>
+          <summary><strong>Palier {p.numero}</strong> <span className="muted">· {p.duree} · p. {p.pages[0]}{p.pages[1] !== p.pages[0] ? `-${p.pages[1]}` : ""}</span>
+            <span className="palier-intitule">{p.intitule}</span></summary>
+          {p.oa.map((oa, i) => (<div className="oa" key={i}>
+            <h4>{[oa.numero && `OA ${oa.numero}`, oa.intitule].filter(Boolean).join(" · ")}{oa.duree && <span className="muted"> · {oa.duree}</span>}</h4>
+            {oa.seances.map((s) => (<div className="lesson-card seance" key={s.id}>
+              <div className="lesson-info">
+                <span className="lesson-title">{s.os}</span>
+                {s.contenus && <p className="seance-contenus">{s.contenus}</p>}
+                {s.avertissement && <p className="warn">⚠ {s.avertissement}</p>}
+              </div>
+              <button className="btn" disabled={enCours !== null} onClick={() => generer(s)}>{enCours === s.id ? "Génération…" : "Générer la fiche"}</button>
+            </div>))}
+          </div>))}
+        </details>))}
+      </section>))}
+      {cherche && matieresGuide.has(mat) && !nbSeances && <Empty>Aucune séance du guide ne correspond à « {q} ».</Empty>}
+
+      {(lecons || []).length > 0 && <h3>Mes leçons</h3>}
+      {(lecons || []).filter((l) => correspond(l.titre)).map((l) => (
         <div className="lesson-card" key={l.id}>
           <div className="lesson-info">
             {l.domaine && <span className="lesson-domain">{l.domaine} → </span>}
@@ -76,7 +90,7 @@ export function Preparation() {
         </div>
       ))}
       
-      {!lecons?.length && !propositions.length && <Empty>Le programme complet n'est pas encore intégré. En attendant, saisissez votre leçon ci-dessous.</Empty>}
+      {!lecons?.length && !matieresGuide.has(mat) && <Empty>Le guide de ce niveau n'est pas encore intégré pour cette matière. En attendant, saisissez votre leçon ci-dessous.</Empty>}
       
       <div className="new-lesson">
         <input className="lesson-input" placeholder="Titre de la leçon" aria-label="Titre de la leçon" value={nv} onChange={(e) => setNv(e.target.value)} />
@@ -106,7 +120,7 @@ export function Fiche() {
     <div className="noprint"><button className="btn sec" onClick={() => setPrev(false)}>Modifier</button></div><Pdf />
   </>);
   return (<>
-    <Steps items={ETAPES_FICHE} current={4} /><h1>{f.lecon}</h1><p className="muted">{f.niveau} – {f.matiere} – {f.annee_scolaire} <span className="pill">Canevas provisoire : à valider</span></p>
+    <Steps items={ETAPES_FICHE} current={4} /><h1>{f.lecon}</h1><p className="muted">{f.niveau} – {f.matiere} – {f.annee_scolaire} {f.origine ? <span className="pill">📘 Générée depuis le guide (p. {f.origine.pages.join("-")}) · modifiable librement</span> : <span className="pill">Canevas provisoire : à valider</span>}</p>
     {s.map((x, i) => (<div className="card" key={i} style={{ marginBottom: 12 }}>
       <input aria-label="Titre de la rubrique" value={x.titre} onChange={(e) => upd(i, "titre", e.target.value)} style={{ fontWeight: 700 }} />
       <textarea aria-label={x.titre} value={x.contenu} onChange={(e) => upd(i, "contenu", e.target.value)} style={{ marginTop: 8 }} />

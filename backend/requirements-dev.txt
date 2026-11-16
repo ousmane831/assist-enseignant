@@ -1,0 +1,3 @@
+# Outils de développement (non nécessaires pour faire tourner l'application)
+-r requirements.txt
+pypdf==7.1.0

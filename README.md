@@ -97,16 +97,46 @@ Chaque évaluation a un statut persistant : **brouillon → vérifiée → valid
 - Pas d'inscription en ligne : les comptes sont créés par l'administrateur.
 - **Photo de profil** : l'envoi exige une connexion (un fichier ne se met pas en file d'attente comme un JSON) et la photo n'est pas relue hors connexion. Les fichiers ne sont servis par Django qu'en développement (`DEBUG=1`) : en production, c'est le serveur web qui sert `/media/` en HTTPS.
 
-## 10. Données pédagogiques PROVISOIRES — à valider
-Matières, types d'évaluation, périodes, rubriques du canevas de fiche, seuils et libellés d'appréciation, modèle de bulletin sont des **valeurs de développement modifiables dans Paramètres**. Les leçons personnelles sont ajoutées par l'enseignant. Un pilote pédagogique est également disponible via `GET /api/referentiel-pedagogique/` (authentification obligatoire) : une proposition CI – communication orale, issue du repérage de la page 32 du guide de l'étape 1, est préremplie dans l'écran Préparer. Le fichier `backend/core/data/referentiel_pilote_etape1_2026.json` enregistre l'année de référence 2026 et la page source.
+## 10. Données pédagogiques provisoires (Paramètres)
+Matières, types d'évaluation, périodes, rubriques du canevas libre, seuils d'appréciation et modèle de bulletin sont des **valeurs provisoires modifiables dans Paramètres**.
+Règles de calcul provisoires (`core/calculs.py`) : note ramenée sur une base configurable (20) ; moyenne de matière pondérée par coefficient d'évaluation ; moyenne générale = moyenne simple des matières ; arrondi à 2 décimales ; ex æquo = même rang ; appréciation automatique = texte du seuil le plus élevé atteint par la moyenne.
 
-Cette entrée est un **résumé de travail non validé**, affiché comme pilote à vérifier et non comme contenu officiel approuvé. Les champs de durée, démarche et évaluation restent à compléter ; aucun modèle d'IA ni génération libre n'est utilisé. Chaque enseignant peut modifier la fiche créée. Le référentiel reste en lecture seule et l'entrée n'est pas activée comme référentiel national (`actif_dans_application: false`).
+## 11. Référentiel des guides et génération automatique des fiches
+**Objectif** : l'enseignant choisit niveau → matière → séance, et la fiche est **générée automatiquement à partir du guide officiel** ;
+la fiche générée lui appartient et **reste entièrement modifiable**. Les guides sont la source, en lecture seule.
 
-L'inventaire initial du guide de l'étape 1 est consigné dans `backend/core/data/inventaire_guide_etape1_2026.json` : il repère les domaines, sous-domaines et pages sources du CI/CP. Une première synthèse des 8 paliers de communication orale (CI : paliers 1 à 4 ; CP : paliers 5 à 8) y est également consignée à partir des pages 32 à 45. **Ce n'est pas encore le référentiel complet** : les tableaux, objectifs détaillés, durées et situations doivent être vérifiés sur le PDF avant leur intégration dans l'application.
-Règles de calcul provisoires (`core/calculs.py`) : note ramenée sur une base configurable (20) ; moyenne de matière pondérée par coefficient d'évaluation ; moyenne générale = moyenne simple des matières ; arrondi à 2 décimales ; ex æquo = même rang ; appréciation automatique = texte du seuil le plus élevé atteint par la moyenne (`appreciation_auto`).
+| Élément | Rôle |
+|---|---|
+| `backend/core/data/referentiel/etapeN.json` | guide transcrit : activité → palier → OA → séances (OS + contenus), situations d'intégration/évaluation, pages sources |
+| `core/referentiel.py` | chargement, filtre par niveau, contrôles, construction des sections d'une fiche |
+| `GET /api/referentiel-pedagogique/` | sommaire (guides, niveaux, activités) ; `?niveau=CI` : séances de ce niveau |
+| `POST /api/fiches/generer/` | `{seance, annee_scolaire?}` → crée la fiche de l'enseignant ; `Fiche.origine` garde la trace (guide, séance, pages) |
+| `manage.py verifier_referentiel --pdf-dir ..` | **contrôle de fidélité** : chaque mot transcrit doit figurer dans le PDF aux pages citées (nécessite `requirements-dev.txt`) |
 
-## 11. Prochaines étapes
-Compléter l'extraction du guide de l'étape 1 pour tous les domaines du CI et du CP, vérifier chaque contenu et sa page source, puis faire valider le référentiel par des enseignants/conseillers pédagogiques avant activation ; compléter les champs du pilote et confirmer l'édition du guide ; étendre ensuite aux étapes 2 et 3 ; valider les règles de calcul et le modèle de bulletin ; générateur PDF ; tests de composants React et tests bout en bout (Playwright) ; PostgreSQL et déploiement HTTPS ; icônes PWA.
+- **Une fiche = une séance = un objectif spécifique (OS)**, rythme du guide (« un OS par semaine »).
+- **Aucune IA** : compétence, palier, OA, OS, contenus, critères et situation d'intégration sont **repris du guide** ; le **déroulement**
+  est un canevas de l'application, annoncé comme tel dans la fiche, à adapter. La section « Source » cite le guide et les pages.
+- Générer à nouveau crée une **nouvelle** fiche : une fiche existante n'est jamais modifiée par le référentiel.
+- Contenus absents d'une séance (cellules fusionnées dans le guide) : hérités de l'OA, puis du palier.
+
+**Avancement de la transcription** : **guides des étapes 1 et 2 complets — 35 activités, 1 084 séances**, chaque mot contrôlé contre le PDF (0 écart).
+| Guide | Activités | Séances |
+|---|---|---|
+| Étape 1 (CI-CP) | Communication orale, lecture, production d'écrits · activités géométriques, numériques, de mesure, résolution de problèmes · histoire, géographie, initiation scientifique et technologique, vivre dans son milieu, vivre ensemble · EPS, arts plastiques, éducation musicale, arts scéniques | 500 |
+| Étape 2 (CE1-CE2) | Expression orale et récitation, lecture, production d'écrits · mathématiques (4 activités) · histoire, géographie, IST · vivre dans son milieu, vivre ensemble · EPS, arts plastiques, musique, arts scéniques (+ programmes spécifiques franco-arabes) | 584 |
+| Étape 3 (CM1-CM2) | — | guide non fourni |
+
+Règles de transcription : texte du guide repris tel quel (coquilles comprises : le contrôle refuse tout mot absent du PDF) ;
+rien d'inventé (cellule vide du guide → « — ») ; une anomalie manifeste du guide est signalée par un champ `avertissement`,
+affiché comme note de l'**application** (ex. géographie CE2, palier 4, p. 258). Le contrôle tolère strictement les défauts
+d'extraction PDF (mot coupé ou collé, « 1O7 » pour « 107 »).
+**Points à faire valider par un enseignant/conseiller** : répartition CI/CP des paliers de « Vivre ensemble » (étape 1) ;
+niveau des programmes franco-arabes de musique et d'arts scéniques (étape 2) ; situations « interdisciplinaires » non reprises
+(étape 2, p. 221-223, 275-278, 306-309 : rattachées à aucun palier).
+
+Ajouter une activité : compléter le JSON du guide, puis `python manage.py verifier_referentiel --pdf-dir ..` (0 écart exigé) et `python manage.py test`.
+Les guides PDF ne sont pas versionnés (`.gitignore`) ; `core/data/inventaire_guide_etape1_2026.json` garde l'inventaire des rubriques et pages de l'étape 1.
+Avant un usage généralisé : faire relire le référentiel par des enseignants/conseillers pédagogiques.
 
 ## 12. Demande de compte (écran de connexion)
 Le bouton **« Demander un compte »** (bas de la page de connexion) ouvre un formulaire : **nom complet, numéro de téléphone,
