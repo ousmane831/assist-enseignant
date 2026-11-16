@@ -127,8 +127,7 @@ TEMPLATES = [
 # DATABASE
 # =============================================================================
 
-# SQLite : suffisant pour le développement et un test terrain restreint.
-# En production, configurer une vraie base (ex. PostgreSQL) via DATABASES.
+# PostgreSQL obligatoire : variables POSTGRES_* de backend/.env (voir .env.example).
 
 DATABASES = {
     "default": {
@@ -167,7 +166,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.TokenAuthentication",
+        "core.auth.TokenExpirable",  # token refusé au-delà de TOKEN_DUREE_JOURS (voir core/auth.py)
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
@@ -179,6 +178,9 @@ REST_FRAMEWORK = {
         "anon": "30/min",
     },
 }
+
+# Durée de vie d'une session (token) : au-delà, l'enseignant doit se reconnecter.
+TOKEN_DUREE_JOURS = int(os.environ.get("TOKEN_DUREE_JOURS", "30"))
 
 
 # =============================================================================
@@ -222,3 +224,14 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = (
         os.environ.get("HTTPS", "1") == "1"
     )
+
+# =============================================================================
+# TESTS
+# =============================================================================
+
+# Hachage rapide pendant `manage.py test` uniquement : le hachage réel (PBKDF2, volontairement lent)
+# multipliait la durée de la suite (~6 min). Aucun effet sur l'application réelle.
+import sys  # noqa: E402
+
+if len(sys.argv) > 1 and sys.argv[1] == "test":
+    PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]

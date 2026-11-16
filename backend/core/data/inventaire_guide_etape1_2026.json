@@ -1,0 +1,251 @@
+{
+  "schema_version": 1,
+  "statut": "inventaire_initial_a_verifier",
+  "referentiel": {
+    "nom": "Guide pédagogique de l'étape 1",
+    "etape": 1,
+    "niveaux_cibles": ["CI", "CP"],
+    "annee_reference": 2026,
+    "annee_publication": null,
+    "source": "GUIDE PEDAGOGIQUE ETAPE 1.pdf",
+    "nombre_pages": 234,
+    "actif_dans_application": false,
+    "note": "Repérage initial des rubriques et pages à partir du texte extrait du PDF. Les progressions détaillées, leur répartition entre CI et CP et les tableaux doivent encore être transcrits et vérifiés visuellement avec le guide."
+  },
+  "reperes_programmation": [
+    {
+      "niveau": "CI",
+      "description": "Tableau de correspondance des activités planifiées",
+      "pages_pdf": [28, 31]
+    },
+    {
+      "niveau": "CP",
+      "description": "Planifications repérées dans les rubriques disciplinaires et emploi du temps",
+      "pages_pdf": [39, 234]
+    }
+  ],
+  "domaines": [
+    {
+      "id": "langue-et-communication",
+      "titre": "Langue et communication",
+      "pages_pdf": [27, 95],
+      "sous_domaines": [
+        {
+          "id": "communication-orale",
+          "titre": "Communication orale",
+          "pages_pdf": [32, 55],
+          "niveaux_a_detailler": ["CI", "CP"],
+          "progression_initiale_a_verifier": [
+            {
+              "niveau": "CI",
+              "palier": 1,
+              "pages_pdf": [32, 33],
+              "duree_reperage": "8 semaines",
+              "axes_reperes": [
+                "Saluer une personne et répondre à une salutation.",
+                "Se présenter et demander à son interlocuteur de se présenter.",
+                "Présenter une personne et prendre congé."
+              ],
+              "integration_pages_pdf": [33]
+            },
+            {
+              "niveau": "CI",
+              "palier": 2,
+              "pages_pdf": [34, 35],
+              "duree_reperage": "8 semaines",
+              "axes_reperes": [
+                "Saluer et se présenter en groupe.",
+                "Demander des renseignements.",
+                "Mémoriser et restituer comptines et poèmes."
+              ],
+              "integration_pages_pdf": [35]
+            },
+            {
+              "niveau": "CI",
+              "palier": 3,
+              "pages_pdf": [36, 36],
+              "duree_reperage": null,
+              "axes_reperes": [
+                "Demander une permission.",
+                "Demander un service.",
+                "Mémoriser et restituer comptines et poèmes."
+              ],
+              "integration_pages_pdf": [36]
+            },
+            {
+              "niveau": "CI",
+              "palier": 4,
+              "pages_pdf": [37, 38],
+              "duree_reperage": "5 semaines",
+              "axes_reperes": [
+                "Exprimer des besoins, sentiments et sensations.",
+                "Exprimer ses préférences.",
+                "Mémoriser et restituer comptines et poèmes."
+              ],
+              "integration_pages_pdf": [38]
+            },
+            {
+              "niveau": "CP",
+              "palier": 5,
+              "pages_pdf": [39, 40],
+              "duree_reperage": "6 semaines",
+              "axes_reperes": [
+                "Exprimer un désir et demander à quelqu'un ce qu'il désire.",
+                "Exprimer et demander un avis.",
+                "Exprimer son inquiétude et sa déception.",
+                "Mémoriser et restituer comptines et poèmes."
+              ],
+              "integration_pages_pdf": [40]
+            },
+            {
+              "niveau": "CP",
+              "palier": 6,
+              "pages_pdf": [41, 42],
+              "duree_reperage": "7 semaines",
+              "axes_reperes": [
+                "Inviter quelqu'un.",
+                "Interdire ou recommander quelque chose et donner des ordres."
+              ],
+              "integration_pages_pdf": [42]
+            },
+            {
+              "niveau": "CP",
+              "palier": 7,
+              "pages_pdf": [43, 43],
+              "duree_reperage": "5 semaines",
+              "axes_reperes": [
+                "Relater un événement vécu et ce qu'une autre personne a fait.",
+                "Raconter une histoire imaginée ou un conte entendu ou lu.",
+                "Mémoriser et restituer comptines et poèmes."
+              ],
+              "integration_pages_pdf": [43]
+            },
+            {
+              "niveau": "CP",
+              "palier": 8,
+              "pages_pdf": [44, 45],
+              "duree_reperage": "4 semaines",
+              "axes_reperes": [
+                "Comparer des objets, des personnes, des lieux et des animaux.",
+                "Décrire un objet, un lieu, un animal ou une personne."
+              ],
+              "integration_pages_pdf": [44, 45]
+            }
+          ],
+          "note_progression": "Résumé initial des intitulés et axes visibles dans le texte extrait des pages sources. Vérifier les tableaux, les objectifs spécifiques, contenus, durées et situations d'intégration directement sur le PDF avant d'utiliser cette progression pour préparer une fiche."
+        },
+        {
+          "id": "lecture",
+          "titre": "Lecture",
+          "pages_pdf": [56, 80],
+          "niveaux_a_detailler": ["CI", "CP"]
+        },
+        {
+          "id": "production-decrits",
+          "titre": "Production d'écrits",
+          "pages_pdf": [81, 95],
+          "niveaux_a_detailler": ["CI", "CP"]
+        }
+      ]
+    },
+    {
+      "id": "mathematiques",
+      "titre": "Mathématiques",
+      "pages_pdf": [96, 159],
+      "sous_domaines": [
+        {
+          "id": "activites-geometriques",
+          "titre": "Activités géométriques",
+          "pages_pdf": [97, 107],
+          "niveaux_a_detailler": ["CI", "CP"]
+        },
+        {
+          "id": "activites-numeriques",
+          "titre": "Activités numériques",
+          "pages_pdf": [108, 134],
+          "niveaux_a_detailler": ["CI", "CP"]
+        },
+        {
+          "id": "mesurage",
+          "titre": "Mesurage",
+          "pages_pdf": [135, 145],
+          "niveaux_a_detailler": ["CI", "CP"]
+        },
+        {
+          "id": "resolution-de-problemes",
+          "titre": "Résolution de problèmes",
+          "pages_pdf": [146, 159],
+          "niveaux_a_detailler": ["CI", "CP"]
+        }
+      ]
+    },
+    {
+      "id": "education-science-vie-sociale",
+      "titre": "Éducation à la science et à la vie sociale",
+      "pages_pdf": [160, 200],
+      "sous_domaines": [
+        {
+          "id": "histoire",
+          "titre": "Histoire",
+          "pages_pdf": [164, 171],
+          "niveaux_a_detailler": ["CI", "CP"]
+        },
+        {
+          "id": "geographie",
+          "titre": "Géographie",
+          "pages_pdf": [172, 179],
+          "niveaux_a_detailler": ["CI", "CP"]
+        },
+        {
+          "id": "initiation-scientifique-technologique",
+          "titre": "Initiation scientifique et technologique",
+          "pages_pdf": [180, 185],
+          "niveaux_a_detailler": ["CI", "CP"]
+        },
+        {
+          "id": "vivre-dans-son-milieu",
+          "titre": "Vivre dans son milieu",
+          "pages_pdf": [186, 193],
+          "niveaux_a_detailler": ["CI", "CP"]
+        },
+        {
+          "id": "vivre-ensemble",
+          "titre": "Vivre ensemble",
+          "pages_pdf": [194, 200],
+          "niveaux_a_detailler": ["CI", "CP"]
+        }
+      ]
+    },
+    {
+      "id": "education-physique-sportive-artistique",
+      "titre": "Éducation physique, sportive et artistique",
+      "pages_pdf": [201, 234],
+      "sous_domaines": [
+        {
+          "id": "education-physique-sportive",
+          "titre": "Éducation physique et sportive",
+          "pages_pdf": [203, 209],
+          "niveaux_a_detailler": ["CI", "CP"]
+        },
+        {
+          "id": "arts-plastiques",
+          "titre": "Arts plastiques",
+          "pages_pdf": [210, 215],
+          "niveaux_a_detailler": ["CI", "CP"]
+        },
+        {
+          "id": "education-musicale",
+          "titre": "Éducation musicale",
+          "pages_pdf": [216, 223],
+          "niveaux_a_detailler": ["CI", "CP"]
+        },
+        {
+          "id": "arts-sceniques",
+          "titre": "Arts scéniques",
+          "pages_pdf": [224, 234],
+          "niveaux_a_detailler": ["CI", "CP"]
+        }
+      ]
+    }
+  ]
+}

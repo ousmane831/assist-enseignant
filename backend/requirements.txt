@@ -1,8 +1,7 @@
-Django>=5.0
-djangorestframework>=3.15
-django-cors-headers>=4.3
-python-dotenv>=1.0
-
-python-dotenv
-gunicorn
-psycopg[binary]
+# Versions figées (testées : 105 tests OK). Mettre à jour volontairement, puis relancer les tests.
+Django==6.1.2
+djangorestframework==3.18.3
+django-cors-headers==4.9.0
+python-dotenv==1.2.4
+psycopg[binary]==3.3.6
+gunicorn==26.2.0

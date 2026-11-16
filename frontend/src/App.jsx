@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
-import { clearCache, dropFailed, failed, flush, get, mediaUrl, pending, retryFailed } from "./api";
+import { call, clearCache, dropFailed, failed, flush, get, mediaUrl, pending, retryFailed } from "./api";
 import { ErrorBoundary, Say, Wait, useGet } from "./ui";
 import * as P from "./pages";
 
@@ -32,7 +32,7 @@ const MENU_HAUT = NAV.filter(([to]) => !CHEMINS_BAS.includes(to));
 async function prefetch() { // précharge de quoi travailler hors connexion (chemins identiques à ceux des écrans)
   try {
     const [cl, ev, fi] = await Promise.all([get("/classes/"), get("/evaluations/"), get("/fiches/")]);
-    await Promise.all([get("/eleves/"), get("/parametres/"), get("/me/"),
+    await Promise.all([get("/eleves/"), get("/parametres/"), get("/me/"), get("/referentiel-pedagogique/"),
       ...cl.flatMap((c) => [get(`/classes/${c.id}/`), get(`/eleves/?classe=${c.id}`), get(`/evaluations/?classe=${c.id}`)]),
       ...ev.flatMap((e) => [get(`/evaluations/${e.id}/`), get(`/evaluations/${e.id}/notes/`)]), ...fi.map((f) => get(`/fiches/${f.id}/`))]);
   } catch { /* hors connexion : on garde le cache existant */ }
@@ -62,6 +62,8 @@ export default function App() {
   }, [auth]);
   const logout = () => {
     if (pending() && !window.confirm("Des modifications ne sont pas encore synchronisées. Elles seront conservées sur cet appareil et envoyées à votre prochaine connexion. Se déconnecter ?")) return;
+    // Révoque le token côté serveur (sans attendre : hors connexion, la déconnexion locale reste immédiate).
+    if (navigator.onLine) call("POST", "/deconnexion/").catch(() => {});
     clearCache(); localStorage.removeItem("token"); setAuth(false);
   };
   if (!auth) return <P.Login onDone={() => { setExpired(false); setAuth(true); }} message={expired ? "Votre session a expiré. Reconnectez-vous : vos données locales sont conservées." : ""} />;
