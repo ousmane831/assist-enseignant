@@ -29,7 +29,7 @@ lancé (autre fenêtre) : ouvrez simplement l'adresse ; pour le redémarrer vous
 - `POST /api/demandes-compte/` — **seul point d'entrée public** : dépôt d'une demande de compte depuis l'écran de connexion (voir §12).
 
 ## 2. Prérequis
-Python ≥ 3.10, Node ≥ 20 (tests frontend : Node ≥ 22), npm.
+Python ≥ 3.12 (Django 6.1), Node ≥ 20 (tests frontend : Node ≥ 22), npm.
 
 ## 3. Installation backend
 ```bash
@@ -98,11 +98,15 @@ Chaque évaluation a un statut persistant : **brouillon → vérifiée → valid
 - **Photo de profil** : l'envoi exige une connexion (un fichier ne se met pas en file d'attente comme un JSON) et la photo n'est pas relue hors connexion. Les fichiers ne sont servis par Django qu'en développement (`DEBUG=1`) : en production, c'est le serveur web qui sert `/media/` en HTTPS.
 
 ## 10. Données pédagogiques PROVISOIRES — à valider
-Rien n'est officiel : matières, types d'évaluation, périodes, rubriques du canevas de fiche, seuils et libellés d'appréciation, modèle de bulletin sont des **valeurs de développement modifiables dans Paramètres**. Le catalogue de leçons est vide (l'enseignant ajoute ses leçons ; import futur d'un programme validé possible via le modèle `Lecon`).
+Matières, types d'évaluation, périodes, rubriques du canevas de fiche, seuils et libellés d'appréciation, modèle de bulletin sont des **valeurs de développement modifiables dans Paramètres**. Les leçons personnelles sont ajoutées par l'enseignant. Un pilote pédagogique est également disponible via `GET /api/referentiel-pedagogique/` (authentification obligatoire) : une proposition CI – communication orale, issue du repérage de la page 32 du guide de l'étape 1, est préremplie dans l'écran Préparer. Le fichier `backend/core/data/referentiel_pilote_etape1_2026.json` enregistre l'année de référence 2026 et la page source.
+
+Cette entrée est un **résumé de travail non validé**, affiché comme pilote à vérifier et non comme contenu officiel approuvé. Les champs de durée, démarche et évaluation restent à compléter ; aucun modèle d'IA ni génération libre n'est utilisé. Chaque enseignant peut modifier la fiche créée. Le référentiel reste en lecture seule et l'entrée n'est pas activée comme référentiel national (`actif_dans_application: false`).
+
+L'inventaire initial du guide de l'étape 1 est consigné dans `backend/core/data/inventaire_guide_etape1_2026.json` : il repère les domaines, sous-domaines et pages sources du CI/CP. Une première synthèse des 8 paliers de communication orale (CI : paliers 1 à 4 ; CP : paliers 5 à 8) y est également consignée à partir des pages 32 à 45. **Ce n'est pas encore le référentiel complet** : les tableaux, objectifs détaillés, durées et situations doivent être vérifiés sur le PDF avant leur intégration dans l'application.
 Règles de calcul provisoires (`core/calculs.py`) : note ramenée sur une base configurable (20) ; moyenne de matière pondérée par coefficient d'évaluation ; moyenne générale = moyenne simple des matières ; arrondi à 2 décimales ; ex æquo = même rang ; appréciation automatique = texte du seuil le plus élevé atteint par la moyenne (`appreciation_auto`).
 
 ## 11. Prochaines étapes
-Valider les règles de calcul et le modèle de bulletin avec des enseignants ; importer un programme validé ; générateur PDF ; tests de composants React et tests bout en bout (Playwright) ; PostgreSQL et déploiement HTTPS ; icônes PWA.
+Compléter l'extraction du guide de l'étape 1 pour tous les domaines du CI et du CP, vérifier chaque contenu et sa page source, puis faire valider le référentiel par des enseignants/conseillers pédagogiques avant activation ; compléter les champs du pilote et confirmer l'édition du guide ; étendre ensuite aux étapes 2 et 3 ; valider les règles de calcul et le modèle de bulletin ; générateur PDF ; tests de composants React et tests bout en bout (Playwright) ; PostgreSQL et déploiement HTTPS ; icônes PWA.
 
 ## 12. Demande de compte (écran de connexion)
 Le bouton **« Demander un compte »** (bas de la page de connexion) ouvre un formulaire : **nom complet, numéro de téléphone,
@@ -203,5 +207,17 @@ Sous 800 px de large, la barre latérale est remplacée par deux barres :
   (bulletins, fiches, livrets).
 
 
+## 17. Sessions, mot de passe et photo (sécurité)
+| Route | Rôle |
+|---|---|
+| `POST /api/login/` | connexion ; un token **expiré** est remplacé par un nouveau |
+| `POST /api/deconnexion/` | révoque le token de l'appareil (appelé par « Se déconnecter ») |
+| `POST /api/mot-de-passe/` | `{ancien, nouveau}` : règles de mot de passe Django ; **toutes les sessions sont révoquées**, l'appareil courant reçoit un nouveau token |
 
-
+- Un token est valable `TOKEN_DUREE_JOURS` jours (30 par défaut, `backend/.env`) ; au-delà : 401 et « session expirée »
+  (la file hors connexion est conservée et renvoyée après reconnexion). Voir `core/auth.py`.
+- Écran **Paramètres → Mot de passe** : remplace le mot de passe temporaire remis par l'administrateur (connexion requise).
+- Photo de profil : le format est reconnu par la **signature du fichier** (JPEG, PNG, WebP), jamais par le type ou le nom
+  annoncés par le navigateur, et le fichier est **renommé** (`<aléatoire>.jpg|png|webp`) : rien ne peut être servi sous
+  `/media/` comme une page HTML.
+- Tests : pendant `manage.py test`, un hachage de mot de passe rapide est utilisé (suite en quelques secondes au lieu de ~6 min).

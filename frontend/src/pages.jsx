@@ -288,8 +288,8 @@ export function Dashboard() {
       {[
         { label: "Classes", value: cl?.length ?? 0 },
         { label: "Élèves", value: el?.length ?? 0 },
-        { label: "Fiches", value: Math.min(fi?.length || 0, 5) },
-        { label: "Évaluations", value: Math.min(ev?.length || 0, 5) }
+        { label: "Fiches", value: fi?.length ?? 0 },
+        { label: "Évaluations", value: ev?.length ?? 0 }
       ].map((stat) => (
         <div className="stat-card" key={stat.label}>
           <div className="stat-value">{stat.value}</div>
@@ -315,10 +315,22 @@ export function Dashboard() {
 
 export function Preparation() {
   const nav = useNavigate(), say = useContext(Say), [cfg] = useGet("/parametres/");
+  const [referentiel] = useGet("/referentiel-pedagogique/");
   const [niv, setNiv] = useState(), [mat, setMat] = useState(), [q, setQ] = useState(""), [nv, setNv] = useState("");
   const [lecons, reload] = useGet(niv && mat ? `/lecons/?niveau=${niv}&matiere=${encodeURIComponent(mat)}` : null);
-  const ouvrir = async (titre) => {
-    const f = await safe(say, () => send("POST", "/fiches/", { niveau: niv, matiere: mat, lecon: titre, annee_scolaire: cfg.annee_scolaire || "", sections: cfg.canevas.map((t) => ({ titre: t, contenu: "" })) }));
+  const propositions = (referentiel?.referentiel?.disponible_dans_pilote ? referentiel.entrees : [])
+    .filter((e) => e.niveau === niv && e.matiere === mat && `${e.titre} ${e.domaine}`.toLowerCase().includes(q.toLowerCase()));
+  const ouvrir = async (titre, proposition = null) => {
+    const sections = proposition ? [
+      { titre: "Compétence (résumé)", contenu: proposition.competence_resume || "" },
+      { titre: "Objectifs repérés", contenu: proposition.objectifs_reperes.join("\n") },
+      { titre: "Contenus repérés", contenu: proposition.contenu_resume || "" },
+      { titre: "Durée", contenu: proposition.duree || "" },
+      { titre: "Démarche", contenu: proposition.demarche || "" },
+      { titre: "Évaluation", contenu: proposition.evaluation || "" },
+      { titre: "Source et validation", contenu: `Pilote à vérifier pédagogiquement — ${referentiel.referentiel.nom}, référence ${referentiel.referentiel.annee_reference}, page ${proposition.source_pages_pdf.join(", ")}. Ce résumé n'est pas une transcription officielle.` }
+    ] : (cfg?.canevas || []).map((t) => ({ titre: t, contenu: "" }));
+    const f = await safe(say, () => send("POST", "/fiches/", { niveau: niv, matiere: mat, domaine: proposition?.domaine || "", lecon: titre, annee_scolaire: cfg?.annee_scolaire || "", sections }));
     if (f?.id) nav("/fiches/" + f.id);
   };
   const ajouter = async () => { if (!nv.trim()) return; await safe(say, () => send("POST", "/lecons/", { niveau: niv, matiere: mat, titre: nv }), "Enregistrement réussi"); setNv(""); reload(); };
@@ -355,6 +367,19 @@ export function Preparation() {
       <h2 className="step-title">Étape 3 : Choisissez la leçon</h2>
       <input className="search-input" placeholder="Rechercher une leçon" aria-label="Rechercher une leçon" value={q} onChange={(e) => setQ(e.target.value)} />
       <p className="context-text">{niv} → {mat}</p>
+
+      {propositions.map((e) => (
+        <div className="lesson-card lesson-pilot" key={e.id}>
+          <div className="lesson-info">
+            <span className="pill">Pilote à vérifier</span>
+            <p className="lesson-pilot-source">{e.domaine} · Guide de l’étape 1, p. {e.source_pages_pdf.join(", ")}</p>
+            <span className="lesson-title">{e.titre}</span>
+            <p>{e.competence_resume}</p>
+            <p className="muted">{e.objectifs_reperes.join(" ")}</p>
+          </div>
+          <button className="btn" onClick={() => ouvrir(e.titre, e)}>Créer une fiche proposée</button>
+        </div>
+      ))}
       
       {(lecons || []).filter((l) => l.titre.toLowerCase().includes(q.toLowerCase())).map((l) => (
         <div className="lesson-card" key={l.id}>
@@ -366,7 +391,7 @@ export function Preparation() {
         </div>
       ))}
       
-      {!lecons?.length && <Empty>Le programme officiel n'est pas préchargé. En attendant, saisissez votre leçon ci-dessous.</Empty>}
+      {!lecons?.length && !propositions.length && <Empty>Le programme complet n'est pas encore intégré. En attendant, saisissez votre leçon ci-dessous.</Empty>}
       
       <div className="new-lesson">
         <input className="lesson-input" placeholder="Titre de la leçon" aria-label="Titre de la leçon" value={nv} onChange={(e) => setNv(e.target.value)} />
@@ -856,9 +881,48 @@ export function Profil() {
   </>);
 }
 
+// Changement du mot de passe (dont le mot de passe temporaire remis par l'administrateur).
+// Connexion requise : un mot de passe ne se met jamais en file d'attente sur l'appareil.
+// Le serveur révoque les autres sessions et renvoie un nouveau token pour cet appareil.
+function MotDePasse() {
+  const say = useContext(Say), vide = { ancien: "", nouveau: "", confirmation: "" };
+  const [f, setF] = useState(vide), [err, setErr] = useState(""), [envoi, setEnvoi] = useState(false);
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const differents = f.confirmation && f.nouveau !== f.confirmation;
+  const changer = async (ev) => {
+    ev.preventDefault(); setErr("");
+    if (f.nouveau !== f.confirmation) return setErr("La confirmation ne correspond pas au nouveau mot de passe.");
+    setEnvoi(true);
+    try {
+      const r = await call("POST", "/mot-de-passe/", { ancien: f.ancien, nouveau: f.nouveau });
+      localStorage.setItem("token", r.token); setF(vide);
+      say("✅ Mot de passe modifié. Vos autres appareils devront se reconnecter.");
+    } catch (e) { setErr(e.status === 400 ? "⚠️ " + (e.detail || "Vérifiez les informations saisies.") : msg(e)); }
+    finally { setEnvoi(false); }
+  };
+  return (<form className="card param-section" onSubmit={changer}>
+    <h2>Mot de passe</h2>
+    <p className="param-aide">Remplacez le mot de passe temporaire remis par l'administrateur. 8 caractères minimum, pas uniquement des chiffres. L'opération nécessite une connexion Internet.</p>
+    <div className="param-grille">
+      <div><label htmlFor="mdp-ancien">Mot de passe actuel</label>
+        <input id="mdp-ancien" type="password" autoComplete="current-password" required value={f.ancien} onChange={set("ancien")} /></div>
+      <div><label htmlFor="mdp-nouveau">Nouveau mot de passe</label>
+        <input id="mdp-nouveau" type="password" autoComplete="new-password" required minLength={8} value={f.nouveau} onChange={set("nouveau")} /></div>
+      <div><label htmlFor="mdp-confirmation">Confirmer le nouveau mot de passe</label>
+        <input id="mdp-confirmation" type="password" autoComplete="new-password" required value={f.confirmation} onChange={set("confirmation")} aria-invalid={differents || undefined} />
+        {differents && <p className="err">Les deux saisies ne correspondent pas.</p>}</div>
+    </div>
+    {err && <p className="err" role="alert">{err}</p>}
+    <button className="btn" disabled={envoi || differents}>{envoi ? "Modification…" : "Changer le mot de passe"}</button>
+  </form>);
+}
+
 export function Parametres({ onLogout }) {
   const say = useContext(Say), [cfg, recharger] = useGet("/parametres/"), [c, setC] = useState(null);
-  useEffect(() => { if (cfg) setC(cfg); }, [cfg]);
+  // Texte brut du barème tel que tapé : le relire à chaque frappe effaçait le point décimal (« 0. » -> 0)
+  // et les lignes vides (impossible d'ajouter une règle avec Entrée). null = afficher la configuration.
+  const [seuilsBruts, setSeuilsBruts] = useState(null);
+  useEffect(() => { if (cfg) { setC(cfg); setSeuilsBruts(null); } }, [cfg]);
   if (!c) return <Wait />;
   const modifie = JSON.stringify(c) !== JSON.stringify(cfg); // affiche l'état « modifications non enregistrées »
   // set(clé, valeur) : met à jour la copie locale de la configuration (appelée avec deux arguments).
@@ -868,7 +932,9 @@ export function Parametres({ onLogout }) {
     <p className="param-aide">{aide}</p>
     <textarea id={"p-" + k} value={c[k].join("\n")} onChange={(e) => set(k, e.target.value.split("\n"))} />
   </div>);
-  const seuils = c.appreciations.map((a) => `${a.min}|${a.texte}`).join("\n");
+  const seuils = seuilsBruts ?? c.appreciations.map((a) => `${a.min}|${a.texte}`).join("\n");
+  const lireSeuils = (texte) => texte.split("\n").filter((l) => l.trim()).map((l) => { const [m, ...t] = l.split("|"); return { min: parseFloat(String(m).replace(",", ".")) || 0, texte: t.join("|").trim() }; });
+  const changerSeuils = (texte) => { setSeuilsBruts(texte); set("appreciations", lireSeuils(texte)); };
   const enregistrer = async () => {
     const propre = { ...c, matieres: c.matieres.filter(Boolean).map((x) => x.trim()), types: c.types.filter(Boolean).map((x) => x.trim()),
       periodes: c.periodes.filter(Boolean).map((x) => x.trim()), canevas: c.canevas.filter(Boolean).map((x) => x.trim()) };
@@ -923,8 +989,10 @@ export function Parametres({ onLogout }) {
     <section className="card param-section">
       <h2>Appréciations automatiques</h2>
       <p className="param-aide">Barème appliqué <strong>automatiquement</strong> à la moyenne de la période : l'application remplit l'appréciation de chaque élève, vous n'avez rien à saisir. Une règle par ligne, au format <code>seuil|texte</code>, le seuil étant une fraction de la base (ex. <code>0.5|Résultats satisfaisants</code>) ; c'est le seuil le plus élevé atteint qui est retenu. Un texte que vous validez pour un élève prévaut toujours sur ce barème.</p>
-      <textarea id="p-appreciations" value={seuils} onChange={(e) => set("appreciations", e.target.value.split("\n").filter(Boolean).map((l) => { const [m, ...t] = l.split("|"); return { min: parseFloat(m) || 0, texte: t.join("|") }; }))} />
+      <textarea id="p-appreciations" value={seuils} onChange={(e) => changerSeuils(e.target.value)} />
     </section>
+
+    <MotDePasse />
 
     <section className="card param-section zone-danger">
       <h2>Compte et session</h2>
@@ -934,7 +1002,7 @@ export function Parametres({ onLogout }) {
 
     <div className="barre-actions">
       <button className="btn" disabled={!modifie} onClick={enregistrer}>Enregistrer les paramètres</button>
-      <button className="btn sec" disabled={!modifie} onClick={() => setC(cfg)}>Annuler les modifications</button>
+      <button className="btn sec" disabled={!modifie} onClick={() => { setC(cfg); setSeuilsBruts(null); }}>Annuler les modifications</button>
       {modifie ? <span className="etat-modif" role="status">● Modifications non enregistrées</span> : <span className="muted" role="status">À jour</span>}
     </div>
   </>);

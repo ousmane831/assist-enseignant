@@ -1,6 +1,8 @@
+import json
 import re
 import unicodedata
 from collections import defaultdict
+from pathlib import Path
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -9,11 +11,15 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 from rest_framework import routers, viewsets
-from rest_framework.decorators import action, api_view
+from django.contrib.auth.password_validation import validate_password
+from rest_framework.authtoken.models import Token
+from rest_framework.authtoken.serializers import AuthTokenSerializer
+from rest_framework.decorators import action, api_view, authentication_classes, permission_classes
 from rest_framework.exceptions import APIException, MethodNotAllowed, ValidationError
 from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
 from . import calculs as C, models as m, serializers as s
+from .auth import token_valide
 
 MSG_VALIDE = "Les résultats de cette période sont validés. Rouvrez-les pour les modifier."
 
@@ -520,3 +526,48 @@ def profil_photo(req):
     if ancienne and ancienne != p.photo.name:
         p.photo.storage.delete(ancienne)
     return Response(s.ProfilS(p).data)
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def connexion(req):
+    """Connexion : renvoie le token de l'enseignant ; un token expiré est remplacé (sinon il serait renvoyé
+    tel quel puis refusé à la requête suivante). Limitation : 30 requêtes/minute par IP (AnonRateThrottle)."""
+    ser = AuthTokenSerializer(data=req.data, context={"request": req})
+    ser.is_valid(raise_exception=True)
+    return Response({"token": token_valide(ser.validated_data["user"]).key})
+
+
+@api_view(["POST"])
+def deconnexion(req):
+    """Révoque le token de cet appareil : un token copié ou un appareil perdu ne donne plus accès."""
+    if isinstance(req.auth, Token):
+        req.auth.delete()
+    return Response(status=204)
+
+
+@api_view(["POST"])
+def mot_de_passe(req):
+    """Changement du mot de passe par l'enseignant (notamment le mot de passe temporaire remis par l'administrateur).
+    Toutes les sessions du compte sont révoquées ; l'appareil courant reçoit un nouveau token."""
+    ancien, nouveau = str(req.data.get("ancien") or ""), str(req.data.get("nouveau") or "")
+    if not req.user.check_password(ancien):
+        raise ValidationError({"ancien": "Mot de passe actuel incorrect."})
+    if nouveau == ancien:
+        raise ValidationError({"nouveau": "Le nouveau mot de passe doit être différent de l'actuel."})
+    try:
+        validate_password(nouveau, req.user)
+    except DjangoValidationError as e:
+        raise ValidationError({"nouveau": list(e.messages)})
+    req.user.set_password(nouveau)
+    req.user.save(update_fields=["password"])
+    Token.objects.filter(user=req.user).delete()
+    return Response({"token": Token.objects.create(user=req.user).key, "detail": "Mot de passe modifié."})
+
+
+@api_view(["GET"])
+def referentiel_pedagogique(req):
+    """Référentiel pédagogique partagé, actuellement limité aux données du pilote."""
+    chemin = Path(__file__).resolve().parent / "data" / "referentiel_pilote_etape1_2026.json"
+    return Response(json.loads(chemin.read_text(encoding="utf-8")))

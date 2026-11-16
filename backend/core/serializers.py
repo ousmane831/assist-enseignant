@@ -1,4 +1,5 @@
 import re
+import uuid
 from rest_framework import serializers
 from . import models as m
 def mk(model, **extra):
@@ -67,18 +68,29 @@ class ProfilS(serializers.ModelSerializer):
         return d
 
 
-PHOTO_TYPES = ("image/jpeg", "image/png", "image/webp")  # formats d'image courants (aucune bibliothèque externe)
+def format_image(entete):
+    """Format réel d'une image d'après ses premiers octets (signature), ou None.
+    Le type annoncé par le navigateur et le nom du fichier sont fournis par le client : on ne s'y fie pas."""
+    if entete.startswith(b"\xff\xd8\xff"): return "jpg"
+    if entete.startswith(b"\x89PNG\r\n\x1a\n"): return "png"
+    if entete[:4] == b"RIFF" and entete[8:12] == b"WEBP": return "webp"
+    return None
+
 
 class PhotoS(serializers.ModelSerializer):
-    """Photo de profil : le fichier vient du client, donc il est vérifié ici (poids et format)."""
+    """Photo de profil : le fichier vient du client, donc il est vérifié ici (poids et format réel).
+    Il est RENOMMÉ (nom aléatoire + extension du format détecté) : un fichier ne peut jamais être
+    enregistré puis servi sous /media/ comme une page HTML ou un script."""
     photo = serializers.FileField()
     class Meta: model = m.Profil; fields = ["photo"]
 
     def validate_photo(self, f):
         if f.size > 2 * 1024 * 1024:
             raise serializers.ValidationError("Photo trop lourde : 2 Mo maximum.")
-        if (getattr(f, "content_type", "") or "").lower() not in PHOTO_TYPES:
+        f.seek(0); fmt = format_image(f.read(12)); f.seek(0)
+        if not fmt:
             raise serializers.ValidationError("Format non accepté : utilisez une image JPEG, PNG ou WebP.")
+        f.name = f"{uuid.uuid4().hex}.{fmt}"
         return f
 
 

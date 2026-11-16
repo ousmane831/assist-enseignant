@@ -1,11 +1,14 @@
 import os
 import shutil
 import tempfile
+from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
+from django.utils import timezone
+from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 from core import models as m
 
@@ -48,8 +51,20 @@ class Authentification(Base):
 
     def test_acces_non_authentifie(self):
         self.client.force_authenticate(None)
-        for url in ("/api/classes/", "/api/eleves/", "/api/fiches/", "/api/evaluations/", "/api/me/", "/api/parametres/", "/api/profil/"):
+        for url in ("/api/classes/", "/api/eleves/", "/api/fiches/", "/api/evaluations/", "/api/me/", "/api/parametres/", "/api/profil/",
+                    "/api/referentiel-pedagogique/"):
             self.assertEqual(self.client.get(url).status_code, 401, url)
+
+    def test_referentiel_pilote_authentifie_et_en_lecture_seule(self):
+        response = self.client.get("/api/referentiel-pedagogique/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["referentiel"]["annee_reference"], 2026)
+        self.assertTrue(data["referentiel"]["disponible_dans_pilote"])
+        self.assertFalse(data["referentiel"]["actif_dans_application"])
+        self.assertEqual(data["entrees"][0]["niveau"], "CI")
+        self.assertEqual(data["entrees"][0]["source_pages_pdf"], [32])
+        self.assertEqual(self.client.post("/api/referentiel-pedagogique/", {}, format="json").status_code, 405)
 
 
 class Permissions(Base):
@@ -495,8 +510,10 @@ class Profil(Base):
         shutil.rmtree(MEDIAS_TEST, ignore_errors=True)
         os.makedirs(os.path.join(MEDIAS_TEST, "profils"), exist_ok=True)
 
+    SIGNATURES = {"image/jpeg": b"\xff\xd8\xff\xe0", "image/png": b"\x89PNG\r\n\x1a\n", "image/webp": b"RIFF\x00\x00\x00\x00WEBP"}
+
     def image(self, nom="photo.jpg", type_="image/jpeg"):
-        return SimpleUploadedFile(nom, b"\xff\xd8\xff\xe0" + b"x" * 2048, content_type=type_)
+        return SimpleUploadedFile(nom, self.SIGNATURES[type_] + b"x" * 2048, content_type=type_)
 
     def fichiers(self):  # ce qui est réellement écrit sur le disque
         d = os.path.join(MEDIAS_TEST, "profils")
@@ -534,7 +551,9 @@ class Profil(Base):
         self.assertIn("/media/profils/", r.json()["photo"])
         self.assertTrue(self.client.get("/api/me/").json()["photo"])                 # la barre du haut peut l'afficher
         self.assertEqual(self.client.post(self.PHOTO, {"photo": self.image("autre.png", "image/png")}, format="multipart").status_code, 200)
-        self.assertEqual(self.fichiers(), ["autre.png"], "la photo remplacée est effacée : aucun fichier orphelin")
+        fichiers = self.fichiers()
+        self.assertEqual(len(fichiers), 1, "la photo remplacée est effacée : aucun fichier orphelin")
+        self.assertTrue(fichiers[0].endswith(".png") and fichiers[0] != "autre.png", "fichier renommé selon son format réel")
         self.assertEqual(self.client.delete(self.PHOTO).status_code, 200)
         self.assertEqual((self.client.get("/api/me/").json()["photo"], self.fichiers()), ("", []))
 
@@ -551,3 +570,67 @@ class Profil(Base):
         self.assertEqual(self.client.get("/api/me/").json()["photo"], "")            # b n'hérite pas de la photo d'a
         self.assertEqual(self.client.get(self.URL).json()["photo"], None)            # ni de son profil
         self.assertEqual(m.Profil.objects.filter(user=self.a).count(), 1)
+
+    def test_photo_deguisee_refusee(self):
+        # Une page HTML annoncée comme image : refusée (signature absente), jamais écrite ni servie sous /media/.
+        piege = SimpleUploadedFile("piege.html", b"<script>alert(1)</script>", content_type="image/png")
+        self.assertEqual(self.client.post(self.PHOTO, {"photo": piege}, format="multipart").status_code, 400)
+        self.assertEqual(self.fichiers(), [])
+
+    def test_photo_renommee_selon_son_format_reel(self):
+        # Nom et type annoncés trompeurs, contenu WebP réel : enregistré en .webp sous un nom aléatoire.
+        f = SimpleUploadedFile("x.html", self.SIGNATURES["image/webp"] + b"x" * 64, content_type="text/html")
+        self.assertEqual(self.client.post(self.PHOTO, {"photo": f}, format="multipart").status_code, 200)
+        (nom,) = self.fichiers()
+        self.assertTrue(nom.endswith(".webp") and "html" not in nom, nom)
+
+
+class Sessions(APITestCase):
+    """Connexion, expiration et révocation des tokens, changement de mot de passe."""
+    def setUp(self):
+        self.u = U.objects.create_user("ens", password="Ancien-mdp-2026")
+
+    def login(self, mdp="Ancien-mdp-2026"):
+        return self.client.post("/api/login/", {"username": "ens", "password": mdp}, format="json")
+
+    def avec(self, token): self.client.credentials(HTTP_AUTHORIZATION="Token " + token)
+
+    def test_token_expire_refuse_puis_remplace_a_la_connexion(self):
+        t = self.login().json()["token"]
+        self.avec(t); self.assertEqual(self.client.get("/api/me/").status_code, 200)
+        Token.objects.filter(key=t).update(created=timezone.now() - timedelta(days=31))
+        self.assertEqual(self.client.get("/api/me/").status_code, 401)
+        self.assertFalse(Token.objects.filter(key=t).exists(), "le token expiré est supprimé")
+        self.client.credentials()
+        nouveau = self.login().json()["token"]
+        self.assertNotEqual(nouveau, t)
+        self.avec(nouveau); self.assertEqual(self.client.get("/api/me/").status_code, 200)
+
+    def test_token_encore_valide_reutilise(self):  # plusieurs appareils restent connectés
+        self.assertEqual(self.login().json()["token"], self.login().json()["token"])
+
+    def test_deconnexion_revoque_le_token(self):
+        self.avec(self.login().json()["token"])
+        self.assertEqual(self.client.post("/api/deconnexion/").status_code, 204)
+        self.assertEqual(self.client.get("/api/me/").status_code, 401)
+
+    def test_changement_de_mot_de_passe(self):
+        self.avec(self.login().json()["token"])
+        r = self.client.post("/api/mot-de-passe/", {"ancien": "Ancien-mdp-2026", "nouveau": "Nouveau-mdp-2026"}, format="json")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(self.client.get("/api/me/").status_code, 401, "les anciennes sessions sont révoquées")
+        self.avec(r.json()["token"]); self.assertEqual(self.client.get("/api/me/").status_code, 200)
+        self.client.credentials()
+        self.assertEqual(self.login().status_code, 400)
+        self.assertEqual(self.login("Nouveau-mdp-2026").status_code, 200)
+
+    def test_mot_de_passe_refuse(self):
+        self.avec(self.login().json()["token"])
+        url = "/api/mot-de-passe/"
+        r = self.client.post(url, {"ancien": "faux", "nouveau": "Nouveau-mdp-2026"}, format="json")
+        self.assertEqual((r.status_code, list(r.json())), (400, ["ancien"]))
+        for faible in ("123", "12345678", "Ancien-mdp-2026"):  # trop court, numérique, identique à l'actuel
+            r = self.client.post(url, {"ancien": "Ancien-mdp-2026", "nouveau": faible}, format="json")
+            self.assertEqual((r.status_code, list(r.json())), (400, ["nouveau"]), faible)
+        self.client.credentials()
+        self.assertEqual(self.client.post(url, {}, format="json").status_code, 401)
