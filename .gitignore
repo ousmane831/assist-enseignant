@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+env/
 db.sqlite3
 .env
 # Node / Vite
@@ -16,3 +17,7 @@ frontend/.env.local
 *.zip
 # Médias (photos de profil) : données personnelles des enseignants, jamais versionnées
 backend/media/
+# Guides pédagogiques sources (volumineux, droits) : conservés localement uniquement
+/*.pdf
+# Builds de vérification temporaires
+frontend/verif-out*/
