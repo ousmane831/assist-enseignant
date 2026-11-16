@@ -24,7 +24,7 @@ lancé (autre fenêtre) : ouvrez simplement l'adresse ; pour le redémarrer vous
 ## 1. Architecture
 - `backend/` — Django + Django REST Framework (authentification par token, base **PostgreSQL** configurée dans `config/settings.py` via `.env`).
   - `core/models.py` modèles · `core/views.py` API + validation · `core/calculs.py` calculs (fonctions pures) · `core/tests/` tests
-- `frontend/` — React + Vite. `src/api.js` (API, cache, file hors connexion) · `src/pages.jsx` écrans · `src/BulletinDocument.jsx` rendu bulletin · `public/sw.js` Service Worker.
+- `frontend/` — React + Vite. `src/api.js` (API, cache, file hors connexion) · `src/pages/` écrans (un fichier par écran, `communs.jsx` pour les listes et utilitaires partagés) · `src/BulletinDocument.jsx` rendu bulletin · `public/sw.js` Service Worker.
 - Sécurité : chaque requête est filtrée par propriétaire **côté serveur** ; un enseignant ne peut ni lire, ni modifier, ni rattacher ses objets aux données d'un autre.
 - `POST /api/demandes-compte/` — **seul point d'entrée public** : dépôt d'une demande de compte depuis l'écran de connexion (voir §12).
 
@@ -126,7 +126,7 @@ pièce d'identité** (type + numéro).
   proposées en suggestion dans le formulaire) et le libellé d'**IEF** (saisie libre : chaque département a la sienne).
 
 ## 13. En cas d'échec de connexion (diagnostic)
-Le message de l'écran de connexion distingue désormais les causes (`msgConnexion` dans `frontend/src/pages.jsx`) :
+Le message de l'écran de connexion distingue désormais les causes (`msgConnexion` dans `frontend/src/pages/communs.jsx`) :
 
 | Message affiché | Cause réelle | Action |
 |---|---|---|
