@@ -70,6 +70,7 @@ export function Preparation() {
               <div className="lesson-info">
                 <span className="lesson-title">{s.os}</span>
                 {s.contenus && <p className="seance-contenus">{s.contenus}</p>}
+                {s.avertissement && <p className="warn">⚠ {s.avertissement}</p>}
               </div>
               <button className="btn" disabled={enCours !== null} onClick={() => generer(s)}>{enCours === s.id ? "Génération…" : "Générer la fiche"}</button>
             </div>))}

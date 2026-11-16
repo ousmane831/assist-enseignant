@@ -22,6 +22,21 @@ class Donnees(SimpleTestCase):
         ids = [s["id"] for *_, s in R.parcourir()]
         self.assertEqual(len(ids), len(set(ids)))
 
+    def test_chaque_seance_produit_une_fiche_valide(self):
+        """Toutes les séances des guides (plus d'un millier) se génèrent sans erreur et dans les limites du modèle Fiche."""
+        n = 0
+        for ctx in R.parcourir():
+            d = R.fiche_depuis_seance(ctx)
+            self.assertTrue(d["lecon"] and len(d["lecon"]) <= 200 and len(d["domaine"]) <= 80, ctx[4]["id"])
+            self.assertIn(d["niveau"], R.NIVEAUX)
+            self.assertTrue(all(x["titre"] for x in d["sections"]), ctx[4]["id"])
+            n += 1
+        self.assertGreater(n, 1000)
+
+    def test_avertissement_de_l_application_distinct_du_guide(self):
+        d = R.fiche_depuis_seance(R.trouver_seance("e2-dm-geo-p4-oa1-s3"))  # ligne fautive du guide (p. 258)
+        self.assertEqual(d["sections"][0]["titre"], "⚠ Avertissement (application)")
+
     def test_contenus_herites_de_l_oa_ou_du_palier(self):
         g, a, p, oa, s = R.trouver_seance("e1-co-p7-oa1-s2")  # cellule « contenus » fusionnée dans le guide
         self.assertEqual(s["contenus"], "")

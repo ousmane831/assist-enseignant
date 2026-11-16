@@ -10,7 +10,8 @@ Principes :
   (commande `manage.py verifier_referentiel`).
 
 Structure d'un fichier : guide → activites → paliers → oa → seances (une séance = un objectif spécifique (OS)
-avec ses contenus = une fiche ; `duree` facultative à chaque niveau : palier, OA, séance). Les contenus absents d'une séance sont hérités de l'OA, puis du palier
+avec ses contenus = une fiche ; `duree` facultative à chaque niveau : palier, OA, séance ; `avertissement` facultatif sur
+une séance : note de l'APPLICATION signalant une anomalie du guide, jamais présentée comme texte du guide). Les contenus absents d'une séance sont hérités de l'OA, puis du palier
 (cellules fusionnées dans les tableaux du guide).
 """
 import json
@@ -91,12 +92,10 @@ def _pages(p):
 
 
 def _situation(sit):
-    lignes = [f"Contexte : {sit['contexte']}", f"Consigne : {sit['consigne']}"]
-    if sit.get("production_attendue"):
-        lignes.append(f"Production attendue : {sit['production_attendue']}")
-    if sit.get("indications"):
-        lignes.append(f"Indications pour la passation : {sit['indications']}")
-    return "\n".join(lignes)
+    """Situation du guide (intégration/évaluation) en texte ; chaque rubrique est facultative."""
+    rubriques = [("contexte", "Contexte"), ("consigne", "Consigne"), ("production_attendue", "Production attendue"),
+                 ("indications", "Indications pour la passation"), ("duree", "Durée")]
+    return "\n".join(f"{libelle} : {sit[cle]}" for cle, libelle in rubriques if sit.get(cle))
 
 
 def fiche_depuis_seance(ctx):
@@ -122,8 +121,11 @@ def fiche_depuis_seance(ctx):
     evaluation = "Critères d'évaluation (guide) :\n" + "\n".join(f"- {c}" for c in a.get("criteres", []))
     if p.get("integration"):
         evaluation += f"\n\nSituation d'intégration du palier (guide) :\n{_situation(p['integration'])}"
+    for i, sit in enumerate(p.get("autres_integrations") or [], 2):  # certains paliers en proposent plusieurs
+        evaluation += f"\n\nSituation d'intégration {i} (guide) :\n{_situation(sit)}"
     sections = [
-        {"titre": "Repères", "contenu": f"{a['domaine']} — {a['activite']}\nNiveau : {p['niveau']} · Palier {p['numero']}\nDurée du palier : {p.get('duree') or '—'}"
+        {"titre": "Repères", "contenu": f"{a['domaine']} — {a['activite']}\nNiveau : {p['niveau']} · Palier {p['numero']}"
+                                        + (f"\nDurée du palier : {p['duree']}" if p.get("duree") else "")
                                         + (f"\nDurée (OA) : {oa['duree']}" if oa.get("duree") else "")
                                         + (f"\nDurée de la séance : {s['duree']}" if s.get("duree") else "")},
         {"titre": "Compétence de base", "contenu": a.get("competence_base", "")},
@@ -137,6 +139,8 @@ def fiche_depuis_seance(ctx):
     ]
     if p.get("remarque"):
         sections.append({"titre": "Remarque du guide", "contenu": p["remarque"]})
+    if s.get("avertissement"):  # note de l'APPLICATION (pas du guide) : anomalie du guide repérée à la transcription
+        sections.insert(0, {"titre": "⚠ Avertissement (application)", "contenu": s["avertissement"]})
     sections.append({"titre": "Source", "contenu": f"{g['guide']['nom']}, {_pages(p)}. Compétence, palier, objectifs, contenus, critères et "
                                                     "situations repris du guide ; déroulement proposé par l'application."})
     return {"niveau": p["niveau"], "matiere": a["matiere"], "domaine": a["activite"][:80], "lecon": titre[:200], "sections": sections,
@@ -181,11 +185,11 @@ def valider_structure(donnees):
     return err
 
 
-def mots(texte):
-    """Mots significatifs (3 lettres ou plus), sans accents ni casse : base de la comparaison avec le PDF."""
+def mots(texte, minimum=3):
+    """Mots significatifs (3 lettres ou plus par défaut), sans accents ni casse : base de la comparaison avec le PDF."""
     t = re.sub(r"[’'`´]", " ", str(texte))  # « d’énoncés » = « d » + « énoncés » (et non « denonces »)
     t = unicodedata.normalize("NFKD", t).encode("ascii", "ignore").decode().lower()
-    return [m for m in re.findall(r"[a-z0-9]+", t) if len(m) >= 3]
+    return [m for m in re.findall(r"[a-z0-9]+", t) if len(m) >= minimum]
 
 
 def verifier_fidelite(donnees, texte_pages, marge=1):
@@ -196,8 +200,19 @@ def verifier_fidelite(donnees, texte_pages, marge=1):
 
     def controler(lieu, champ, texte, pages):
         a, b = pages
-        source = set(mots(" ".join(texte_pages.get(n, "") for n in range(a - marge, b + marge + 1))))
-        absents = sorted({m for m in mots(texte) if m not in source})
+        brut = " ".join(texte_pages.get(n, "") for n in range(a - marge, b + marge + 1))
+        liste = mots(re.sub(r"(?<=\d)[oO](?=\d)", "0", brut), minimum=1)  # « 1O7 » imprimé pour « 107 »
+        source = set(liste)
+        # Défauts de l'extraction PDF, tolérés de façon stricte :
+        # - mot COUPÉ (« appr ovisionnement », « côt é ») : accepté s'il est exactement la réunion de 2 à 4 fragments consécutifs ;
+        # - mots COLLÉS (« semainesConstituer ») : un mot de 5 lettres ou plus est accepté s'il commence ou termine un mot de la page.
+        recolles = {"".join(liste[i:i + k]) for k in (2, 3, 4) for i in range(len(liste) - k + 1)}
+        longs = [t for t in source if len(t) > 5]
+
+        def present(m):
+            return m in source or m in recolles or (len(m) >= 5 and any(t != m and (t.startswith(m) or t.endswith(m)) for t in longs))
+
+        absents = sorted({m for m in mots(texte) if not present(m)})
         if absents:
             ecarts.append((lieu, champ, absents))
 
@@ -211,8 +226,10 @@ def verifier_fidelite(donnees, texte_pages, marge=1):
             for champ in ("intitule", "duree", "remarque", "contenus"):
                 if p.get(champ):
                     controler(lieu, champ, p[champ], pg)
-            for cle in ("integration", "evaluation"):
-                for champ, texte in (p.get(cle) or {}).items():
+            situations = [("integration", p.get("integration")), ("evaluation", p.get("evaluation")),
+                          *((f"autres_integrations[{i}]", x) for i, x in enumerate(p.get("autres_integrations") or []))]
+            for cle, sit in situations:
+                for champ, texte in (sit or {}).items():
                     controler(lieu, f"{cle}.{champ}", texte, pg)
             for oa in p["oa"]:
                 for champ in ("intitule", "duree", "contenus"):

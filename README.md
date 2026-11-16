@@ -119,12 +119,20 @@ la fiche générée lui appartient et **reste entièrement modifiable**. Les gui
 - Générer à nouveau crée une **nouvelle** fiche : une fiche existante n'est jamais modifiée par le référentiel.
 - Contenus absents d'une séance (cellules fusionnées dans le guide) : hérités de l'OA, puis du palier.
 
-**Avancement de la transcription**
-| Guide | Activité | Niveaux | Pages | État |
-|---|---|---|---|---|
-| Étape 1 (CI-CP) | Communication orale | CI (paliers 1-4), CP (5-8) | 32-45 | ✅ transcrite, fidélité vérifiée (64 séances) |
-| Étape 1 | Communication écrite, mathématiques, ESVS, EPSA | CI-CP | — | à transcrire |
-| Étape 2 (CE1-CE2) | toutes | CE1-CE2 | — | à transcrire |
+**Avancement de la transcription** : **guides des étapes 1 et 2 complets — 35 activités, 1 084 séances**, chaque mot contrôlé contre le PDF (0 écart).
+| Guide | Activités | Séances |
+|---|---|---|
+| Étape 1 (CI-CP) | Communication orale, lecture, production d'écrits · activités géométriques, numériques, de mesure, résolution de problèmes · histoire, géographie, initiation scientifique et technologique, vivre dans son milieu, vivre ensemble · EPS, arts plastiques, éducation musicale, arts scéniques | 500 |
+| Étape 2 (CE1-CE2) | Expression orale et récitation, lecture, production d'écrits · mathématiques (4 activités) · histoire, géographie, IST · vivre dans son milieu, vivre ensemble · EPS, arts plastiques, musique, arts scéniques (+ programmes spécifiques franco-arabes) | 584 |
+| Étape 3 (CM1-CM2) | — | guide non fourni |
+
+Règles de transcription : texte du guide repris tel quel (coquilles comprises : le contrôle refuse tout mot absent du PDF) ;
+rien d'inventé (cellule vide du guide → « — ») ; une anomalie manifeste du guide est signalée par un champ `avertissement`,
+affiché comme note de l'**application** (ex. géographie CE2, palier 4, p. 258). Le contrôle tolère strictement les défauts
+d'extraction PDF (mot coupé ou collé, « 1O7 » pour « 107 »).
+**Points à faire valider par un enseignant/conseiller** : répartition CI/CP des paliers de « Vivre ensemble » (étape 1) ;
+niveau des programmes franco-arabes de musique et d'arts scéniques (étape 2) ; situations « interdisciplinaires » non reprises
+(étape 2, p. 221-223, 275-278, 306-309 : rattachées à aucun palier).
 
 Ajouter une activité : compléter le JSON du guide, puis `python manage.py verifier_referentiel --pdf-dir ..` (0 écart exigé) et `python manage.py test`.
 Les guides PDF ne sont pas versionnés (`.gitignore`) ; `core/data/inventaire_guide_etape1_2026.json` garde l'inventaire des rubriques et pages de l'étape 1.
